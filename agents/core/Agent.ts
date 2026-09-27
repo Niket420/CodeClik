@@ -9,8 +9,6 @@ import type {
 import { buildSystemPrompt } from "../prompts/AgentPrompt";
 import { runAgentLoop } from "./AgentLoop";
 
-const DEFAULT_MAX_ITERATIONS = 12;
-
 /**
  * The public entry point: configure once per session (provider, webcontainer,
  * how to ask the user for approval), then call `run()` per task. Mirrors how
@@ -23,7 +21,8 @@ export class Agent {
   private readonly model: string;
   private readonly projectRoot: string;
   private readonly onEvent?: AgentEventHandler;
-  private readonly maxIterations: number;
+  private readonly maxIterations?: number;
+  private readonly signal?: AbortSignal;
   private readonly requestApproval: ApprovalCallback;
 
   constructor(options: AgentOptions) {
@@ -32,7 +31,8 @@ export class Agent {
     this.model = options.provider.model;
     this.projectRoot = options.projectRoot ?? ".";
     this.onEvent = options.onEvent;
-    this.maxIterations = options.maxIterations ?? DEFAULT_MAX_ITERATIONS;
+    this.maxIterations = options.maxIterations;
+    this.signal = options.signal;
 
     // Deny-by-default if the caller didn't wire up an approval UI — an
     // agent that can delete files and run commands must never fall back to
@@ -73,6 +73,7 @@ export class Agent {
       toolContext,
       onEvent: this.onEvent,
       maxIterations: this.maxIterations,
+      signal: this.signal,
     });
   }
 }

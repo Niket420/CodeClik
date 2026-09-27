@@ -12,6 +12,17 @@ export function supportsToolCalling(provider: string): boolean {
   return TOOL_CALLING_PROVIDERS.has(provider);
 }
 
+/** Thrown on HTTP 429 so the agent loop can wait and retry instead of failing. */
+export class RateLimitError extends Error {
+  readonly retryAfterSeconds: number;
+
+  constructor(message: string, retryAfterSeconds: number) {
+    super(message);
+    this.name = "RateLimitError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
 export type ModelTurn = {
   content: string;
   toolCalls: ToolCallRequest[];
@@ -79,6 +90,7 @@ export async function runModelTurn(params: {
   model: string;
   messages: AgentMessage[];
   onTextDelta?: (delta: string) => void;
+  signal?: AbortSignal;
 }): Promise<ModelTurn> {
   if (!supportsToolCalling(params.provider)) {
     throw new Error(
@@ -95,10 +107,18 @@ export async function runModelTurn(params: {
       messages: toWireMessages(params.messages),
       tools: getToolSchemas(),
     }),
+    signal: params.signal,
   });
 
   if (!response.ok) {
     const data = await response.json().catch(() => null);
+    if (response.status === 429) {
+      const retryAfter = Number(response.headers.get("Retry-After"));
+      throw new RateLimitError(
+        data?.error || "Rate limited.",
+        Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 10,
+      );
+    }
     throw new Error(data?.error || `AI request failed (${response.status}).`);
   }
 

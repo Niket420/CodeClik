@@ -95,4 +95,6 @@ export type AgentOptions = {
   requestApproval?: ApprovalCallback;
   /** Safety cap on think-act-observe iterations, in case the model loops. */
   maxIterations?: number;
+  /** Aborting stops the current run (the UI's Stop button). */
+  signal?: AbortSignal;
 };

@@ -108,6 +108,9 @@ export default function AIAssistant({
   // Allow/Deny buttons and clearMessages always settle the current one.
   const approvalResolver = useRef<((approved: boolean) => void) | null>(null);
 
+  // Cancels the in-flight request / agent run when the user hits Stop.
+  const abortController = useRef<AbortController | null>(null);
+
   const replyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -184,7 +187,8 @@ export default function AIAssistant({
       clearTimeout(replyTimeout.current);
       replyTimeout.current = null;
     }
-    // Deny anything still waiting so the agent loop doesn't hang forever.
+    // Stop any running agent and deny anything still waiting so it doesn't hang.
+    abortController.current?.abort();
     resolveApproval(false);
     setIsGenerating(false);
     setMessages([]);
@@ -246,6 +250,9 @@ async function handleSend() {
   setDraft("");
   setIsGenerating(true);
 
+  const controller = new AbortController();
+  abortController.current = controller;
+
   // Create an empty assistant message immediately.
   const assistantId = nextMessageId();
 
@@ -283,6 +290,7 @@ async function handleSend() {
       const agent = new Agent({
         webcontainer,
         provider: { provider: config.providerId, model: config.model },
+        signal: controller.signal,
         onEvent: (event: AgentEvent) => {
           switch (event.type) {
             case "text":
@@ -355,6 +363,7 @@ async function handleSend() {
         model: config.model,
         messages: requestMessages,
       }),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -414,6 +423,9 @@ async function handleSend() {
       }
     }
   } catch (error) {
+    // Stop pressed mid-stream in chat mode: keep whatever text already arrived.
+    if (controller.signal.aborted) return;
+
     console.error("AI request error:", error);
 
     setMessages((previous) =>
@@ -430,6 +442,7 @@ async function handleSend() {
       )
     );
   } finally {
+    if (abortController.current === controller) abortController.current = null;
     setIsGenerating(false);
   }
 }
@@ -439,6 +452,9 @@ async function handleSend() {
       clearTimeout(replyTimeout.current);
       replyTimeout.current = null;
     }
+    abortController.current?.abort();
+    // An agent waiting on the Allow card would otherwise stay blocked.
+    resolveApproval(false);
     setIsGenerating(false);
   }
 
