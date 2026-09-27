@@ -24,6 +24,7 @@ import { gatherContext, type OpenFile } from "./contextGather";
 import { useToast } from "@/components/ui/toast";
 import type { FileTreeNode } from "@/types/file-tree";
 import { Agent, supportsToolCalling, type AgentEvent, type ToolCallRequest, type ToolResult } from "@/agents";
+import type { PendingApproval } from "./AIApprovalCard";
 
 type AIAssistantProps = {
   activeFilePath?: string;
@@ -102,6 +103,11 @@ export default function AIAssistant({
   const [inputFocusToken, setInputFocusToken] = useState(0);
   const [agentMode, setAgentMode] = useState(false);
 
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  // Resolver for the agent's in-flight approval promise — kept in a ref so the
+  // Allow/Deny buttons and clearMessages always settle the current one.
+  const approvalResolver = useRef<((approved: boolean) => void) | null>(null);
+
   const replyTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => () => {
@@ -178,8 +184,25 @@ export default function AIAssistant({
       clearTimeout(replyTimeout.current);
       replyTimeout.current = null;
     }
+    // Deny anything still waiting so the agent loop doesn't hang forever.
+    resolveApproval(false);
     setIsGenerating(false);
     setMessages([]);
+  }
+
+  function requestApprovalInChat(request: PendingApproval["request"], detail: string): Promise<boolean> {
+    resolveApproval(false);
+    return new Promise((resolve) => {
+      approvalResolver.current = resolve;
+      setPendingApproval({ request, detail });
+    });
+  }
+
+  function resolveApproval(approved: boolean) {
+    const resolve = approvalResolver.current;
+    approvalResolver.current = null;
+    setPendingApproval(null);
+    resolve?.(approved);
   }
 
   function handleNewConversation() {
@@ -288,7 +311,11 @@ async function handleSend() {
               break;
           }
         },
-        requestApproval: async (request) => window.confirm(`${request.reason}\n\nAllow this action?`),
+        requestApproval: (request) =>
+          requestApprovalInChat(
+            request,
+            describeToolCall({ id: "", name: request.toolName, arguments: request.args }),
+          ),
       });
 
       // Send the full prior conversation, same as chat mode, so follow-ups
@@ -617,6 +644,8 @@ async function handleSend() {
           <AIChat
             messages={messages}
             isGenerating={isGenerating}
+            pendingApproval={pendingApproval}
+            onApprovalDecision={resolveApproval}
             modelLabel={`${currentProvider?.name ?? "your provider"} · ${config.model}`}
             onSuggestion={(prompt) => {
               setDraft(prompt);

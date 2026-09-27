@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Hide the floating "N" dev-tools badge — it overlaps the IDE chrome.
+  devIndicators: false,
   // web-tree-sitter's Emscripten-generated runtime guards `require("fs")`/
   // `require("path")` behind a `ENVIRONMENT_IS_NODE` runtime check (dead code
   // in a browser tab), but Turbopack still statically resolves those

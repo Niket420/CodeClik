@@ -3,11 +3,14 @@
 import { useEffect, useRef } from "react";
 import { Sparkles } from "lucide-react";
 import AIMessage from "./AIMessage";
+import AIApprovalCard, { type PendingApproval } from "./AIApprovalCard";
 import type { ChatMessage } from "./types";
 
 type AIChatProps = {
   messages: ChatMessage[];
   isGenerating: boolean;
+  pendingApproval?: PendingApproval | null;
+  onApprovalDecision?: (approved: boolean) => void;
   modelLabel: string;
   onSuggestion: (prompt: string) => void;
 };
@@ -19,12 +22,19 @@ const SUGGESTIONS = [
   "Suggest a refactor for readability",
 ];
 
-export default function AIChat({ messages, isGenerating, modelLabel, onSuggestion }: AIChatProps) {
+export default function AIChat({
+  messages,
+  isGenerating,
+  pendingApproval,
+  onApprovalDecision,
+  modelLabel,
+  onSuggestion,
+}: AIChatProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, isGenerating]);
+  }, [messages.length, isGenerating, pendingApproval]);
 
   if (messages.length === 0) {
     return (
@@ -59,7 +69,9 @@ export default function AIChat({ messages, isGenerating, modelLabel, onSuggestio
         <AIMessage key={message.id} message={message} />
       ))}
 
-      {isGenerating && (
+      {pendingApproval && onApprovalDecision ? (
+        <AIApprovalCard approval={pendingApproval} onDecision={onApprovalDecision} />
+      ) : isGenerating && (
         <div className="flex items-center gap-2.5 px-3 py-2">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#a371f7]/15 text-[#a371f7]">
             <Sparkles size={13} />
