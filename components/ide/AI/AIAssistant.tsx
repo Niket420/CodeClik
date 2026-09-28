@@ -59,6 +59,12 @@ function describeToolCall(call: ToolCallRequest): string {
       const cmdArgs = Array.isArray(args.args) ? args.args.join(" ") : "";
       return `Running ${String(args.command ?? "")} ${cmdArgs}`.trim();
     }
+    case "start_dev_server": {
+      const cmdArgs = Array.isArray(args.args) ? args.args.join(" ") : "";
+      return `Starting server ${String(args.command ?? "")} ${cmdArgs}`.trim();
+    }
+    case "check_dev_server":
+      return "Checking server output and preview errors";
     default:
       return call.name;
   }

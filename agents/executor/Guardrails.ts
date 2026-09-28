@@ -18,7 +18,7 @@ const COMMAND_TIMEOUT_MS = 60_000;
 // unapproved too since it's easy to review afterward (Editor shows the diff)
 // and easy to just delete a wrongly-created file — deleting and running
 // commands are the two genuinely hard-to-reverse actions here.
-const APPROVAL_REQUIRED_TOOLS = new Set(["delete_file", "run_command"]);
+const APPROVAL_REQUIRED_TOOLS = new Set(["delete_file", "run_command", "start_dev_server"]);
 
 export function requiresApproval(toolName: string): boolean {
   return APPROVAL_REQUIRED_TOOLS.has(toolName);

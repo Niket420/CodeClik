@@ -5,6 +5,8 @@ import { DeleteFileTool } from "./DeleteFileTool";
 import { CreateDirectoryTool } from "./CreateDirectoryTool";
 import { ListDirectoryTool } from "./ListDirectoryTool";
 import { RunCommandTool } from "./RunCommandTool";
+import { StartDevServerTool } from "./StartDevServerTool";
+import { CheckDevServerTool } from "./CheckDevServerTool";
 
 export const ALL_TOOLS: Tool[] = [
   ReadFileTool,
@@ -13,6 +15,8 @@ export const ALL_TOOLS: Tool[] = [
   CreateDirectoryTool,
   ListDirectoryTool,
   RunCommandTool,
+  StartDevServerTool,
+  CheckDevServerTool,
 ];
 
 const TOOLS_BY_NAME = new Map(ALL_TOOLS.map((tool) => [tool.definition.name, tool]));
@@ -40,4 +44,6 @@ export {
   CreateDirectoryTool,
   ListDirectoryTool,
   RunCommandTool,
+  StartDevServerTool,
+  CheckDevServerTool,
 };

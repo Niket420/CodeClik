@@ -8,6 +8,8 @@ function describeCall(name: string, args: Record<string, unknown>): string {
       return `Delete "${args.path}"`;
     case "run_command":
       return `Run "${args.command}${Array.isArray(args.args) ? " " + args.args.join(" ") : ""}"`;
+    case "start_dev_server":
+      return `Start server "${args.command}${Array.isArray(args.args) ? " " + args.args.join(" ") : ""}" and keep it running`;
     default:
       return `Run ${name}(${JSON.stringify(args)})`;
   }

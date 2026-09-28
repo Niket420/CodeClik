@@ -186,6 +186,9 @@ export default function PlaygroundPage() {
       wc.on("server-ready", (port, url) => {
         console.log(port, url);
         setPreviewUrl(url);
+        // Show it right away — the page has to be loaded for its runtime
+        // errors to reach the agent.
+        setPreviewOpen(true);
       });
       setWebcontainer(wc);
       await refreshFileTree(wc);
