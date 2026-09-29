@@ -111,6 +111,9 @@ export default function AIAssistant({
   const [agentMode, setAgentMode] = useState(false);
 
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  // The agent's current tool step (e.g. "Writing package.json"), shown in
+  // place of the "Thinking" indicator while it runs.
+  const [agentActivity, setAgentActivity] = useState<string | null>(null);
   // Resolver for the agent's in-flight approval promise — kept in a ref so the
   // Allow/Deny buttons and clearMessages always settle the current one.
   const approvalResolver = useRef<((approved: boolean) => void) | null>(null);
@@ -301,23 +304,24 @@ async function handleSend() {
         onEvent: (event: AgentEvent) => {
           switch (event.type) {
             case "text":
+              setAgentActivity(null);
               appendToTranscript(event.delta);
               break;
+            // Tool steps show as one live status line that each new step
+            // replaces; only failed or denied steps stay in the transcript.
             case "tool-call":
-              appendToTranscript(`\n\n> ${describeToolCall(event.call)}`);
-              break;
-            case "approval-resolved":
-              appendToTranscript(event.approved ? " (approved)" : " (denied)");
+              setAgentActivity(describeToolCall(event.call));
               break;
             case "tool-result": {
               const result: ToolResult = event.result;
               if (result.success) {
-                appendToTranscript(" — done");
                 if (["write_file", "delete_file", "create_directory"].includes(event.call.name)) {
                   void onWorkspaceChange?.();
                 }
-              } else if (result.error !== "The user did not approve this action.") {
-                appendToTranscript(` — failed: ${result.error ?? "unknown error"}`);
+              } else if (result.error === "The user did not approve this action.") {
+                appendToTranscript(`\n\n> ${describeToolCall(event.call)} — denied`);
+              } else {
+                appendToTranscript(`\n\n> ${describeToolCall(event.call)} — failed: ${result.error ?? "unknown error"}`);
               }
               break;
             }
@@ -450,6 +454,7 @@ async function handleSend() {
     );
   } finally {
     if (abortController.current === controller) abortController.current = null;
+    setAgentActivity(null);
     setIsGenerating(false);
   }
 }
@@ -667,6 +672,7 @@ async function handleSend() {
           <AIChat
             messages={messages}
             isGenerating={isGenerating}
+            activity={agentActivity}
             pendingApproval={pendingApproval}
             onApprovalDecision={resolveApproval}
             modelLabel={`${currentProvider?.name ?? "your provider"} · ${config.model}`}
