@@ -1,5 +1,6 @@
 import type { AgentMessage, ToolCallRequest } from "../types";
 import { getToolSchemas } from "../tools";
+import { fetchWithSessionRetry } from "@/lib/clerkSession";
 
 // Tool-calling is only wired up for providers that speak the OpenAI
 // chat-completions function-calling shape natively. Anthropic and Google use
@@ -98,7 +99,9 @@ export async function runModelTurn(params: {
     );
   }
 
-  const response = await fetch("/api/ai/chat", {
+  // Long agent runs outlive Clerk's ~1 minute session cookie, so renew and
+  // retry once on 401 instead of failing mid-task.
+  const response = await fetchWithSessionRetry("/api/ai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

@@ -25,6 +25,7 @@ import { useToast } from "@/components/ui/toast";
 import type { FileTreeNode } from "@/types/file-tree";
 import { Agent, supportsToolCalling, type AgentEvent, type ToolCallRequest, type ToolResult } from "@/agents";
 import type { PendingApproval } from "./AIApprovalCard";
+import { fetchWithSessionRetry } from "@/lib/clerkSession";
 
 type AIAssistantProps = {
   activeFilePath?: string;
@@ -359,7 +360,7 @@ async function handleSend() {
       })),
     ];
 
-    const response = await fetch("/api/ai/chat", {
+    const response = await fetchWithSessionRetry("/api/ai/chat", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
