@@ -2,6 +2,7 @@ import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { encrypt } from "@/lib/encryption";
+import { assertEndpointAllowed, EndpointNotAllowedError } from "@/lib/ai/endpointPolicy";
 
 export async function POST(request: Request) {
   try {
@@ -41,6 +42,22 @@ export async function POST(request: Request) {
         { error: "API key is required." },
         { status: 400 }
       );
+    }
+
+    // Reject endpoints that would make this server call localhost, the
+    // private network or cloud metadata (SSRF). Checked again before each call.
+    if (endpoint) {
+      if (typeof endpoint !== "string") {
+        return NextResponse.json({ error: "Endpoint must be a URL." }, { status: 400 });
+      }
+      try {
+        await assertEndpointAllowed(endpoint.trim(), provider);
+      } catch (error) {
+        if (error instanceof EndpointNotAllowedError) {
+          return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+        throw error;
+      }
     }
 
     const encryptedApiKey = apiKey ? encrypt(apiKey) : "";

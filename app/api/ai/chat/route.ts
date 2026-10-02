@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decrypt } from "@/lib/encryption";
 import { acquireAiRequestLease, AiRequestPolicyError } from "@/lib/ai/requestPolicy";
+import { assertEndpointAllowed, EndpointNotAllowedError } from "@/lib/ai/endpointPolicy";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant" | "tool";
@@ -194,6 +195,9 @@ async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 6
   try {
     return await fetch(url, {
       ...options,
+      // Real AI APIs don't redirect; following one could bounce this server
+      // to an internal address the endpoint check never saw.
+      redirect: "error",
       signal: controller.signal,
     });
   } catch (error) {
@@ -439,6 +443,8 @@ export async function POST(request: Request) {
 
     if (OLLAMA_PROVIDERS.has(provider)) {
       const endpoint = (connection.endpoint?.trim() || "http://localhost:11434").replace(/\/+$/, "");
+      // Also covers endpoints saved before the check existed on save.
+      await assertEndpointAllowed(endpoint, provider);
       const ollamaUrl = `${endpoint}/api/chat`;
 
       providerResponse = await fetchWithRetry(
@@ -467,6 +473,11 @@ export async function POST(request: Request) {
           { error: `No endpoint configured for provider "${provider}".` },
           { status: 400 }
         );
+      }
+
+      // User-supplied endpoints only; the built-in defaults above are fixed public APIs.
+      if (connection.endpoint?.trim()) {
+        await assertEndpointAllowed(endpoint, provider);
       }
 
       providerResponse = await fetchWithRetry(
@@ -522,10 +533,9 @@ export async function POST(request: Request) {
             : "AI provider request failed.";
 
       return NextResponse.json(
-        {
-          error: providerError,
-          providerStatus: providerResponse.status,
-        },
+        // The upstream status code isn't returned: for a user-supplied
+        // endpoint it would reveal what's running at that address.
+        { error: providerError },
         { status: 502 }
       );
     }
@@ -568,6 +578,10 @@ export async function POST(request: Request) {
       }).catch((updateError) => {
         console.error("AI usage event could not be updated:", updateError);
       });
+    }
+
+    if (error instanceof EndpointNotAllowedError) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
     if (error instanceof AiRequestPolicyError) {
