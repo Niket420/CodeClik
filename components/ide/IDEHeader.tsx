@@ -13,6 +13,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import type { FileTreeNode } from "@/types/file-tree";
+import BrandMark, { BRAND_NAME } from "@/components/brand/BrandMark";
 
 type ActivityItem = {
   id: string;
@@ -160,11 +161,9 @@ export default function IDEHeader({
   return (
     <div className="relative flex h-full items-center gap-3 bg-[#000000] px-3 text-[#c9d1d9]">
       <div className="flex min-w-0 items-center gap-2">
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded bg-white text-[11px] font-bold text-black">
-          &lt;/&gt;
-        </span>
+        <BrandMark size={24} />
         <span className="hidden text-[13px] font-semibold tracking-tight text-white sm:inline">
-          CodeForge
+          {BRAND_NAME}
         </span>
       </div>
 

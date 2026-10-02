@@ -23,6 +23,11 @@ const nextConfig: NextConfig = {
       path: { browser: "path-browserify" },
     },
   },
+  // The dashboard page was removed — send old links and bookmarks straight
+  // to the editor instead of a 404.
+  async redirects() {
+    return [{ source: "/dashboard", destination: "/playground", permanent: false }];
+  },
   async headers() {
     return [
       {

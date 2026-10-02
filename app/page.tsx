@@ -2,7 +2,6 @@ import {
   ArrowRight,
   Braces,
   Check,
-  Code2,
   Command,
   Files,
   Play,
@@ -16,6 +15,7 @@ import {
   UserButton,
 } from "@clerk/nextjs";
 import Link from "next/link";
+import BrandMark from "@/components/brand/BrandMark";
 
 export default function HomePage() {
   return (
@@ -24,11 +24,9 @@ export default function HomePage() {
 
       <nav className="relative z-10 mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-8">
         <Link href="/" className="group flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-lg bg-white text-black shadow-[0_0_28px_rgba(255,255,255,0.18)] transition group-hover:scale-105">
-            <Code2 size={20} strokeWidth={2.3} />
-          </span>
+          <BrandMark size={36} className="transition group-hover:scale-105" />
           <span className="text-base font-semibold tracking-tight text-white">
-            CodeForge
+            MightGuy
           </span>
         </Link>
 
@@ -48,10 +46,10 @@ export default function HomePage() {
           </Show>
           <Show when="signed-in">
             <Link
-              href="/dashboard"
+              href="/playground"
               className="hidden rounded-md px-3 py-2 text-sm font-medium text-[#c9d1d9] transition hover:bg-white/6 hover:text-white sm:inline-flex"
             >
-              Dashboard
+              Open editor
             </Link>
             <UserButton />
           </Show>
@@ -82,7 +80,7 @@ export default function HomePage() {
             className="cf-fade-up mt-6 max-w-xl text-pretty text-base leading-7 text-[#9da9b5] sm:text-lg"
             style={{ animationDelay: "160ms" }}
           >
-            CodeForge pairs a familiar VS Code-inspired workspace with an in-browser terminal and a fast, distraction-free editor.
+            MightGuy pairs a familiar VS Code-inspired workspace with an in-browser terminal and a fast, distraction-free editor.
           </p>
 
           <div
@@ -90,7 +88,7 @@ export default function HomePage() {
             style={{ animationDelay: "240ms" }}
           >
             <Link
-              href="/dashboard"
+              href="/playground"
               className="group inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black shadow-xl shadow-black/30 transition hover:bg-[#d4d4d4]"
             >
               Open your workspace
@@ -136,7 +134,7 @@ export default function HomePage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#3fb950]" />
               </div>
               <div className="mx-auto rounded-md border border-[#262626] bg-[#000000] px-4 py-1 font-mono text-[10px] text-[#8b949e]">
-                portfolio.tsx — CodeForge
+                portfolio.tsx — MightGuy
               </div>
               <Command size={14} className="text-[#8b949e]" />
             </div>

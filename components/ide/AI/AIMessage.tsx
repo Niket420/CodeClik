@@ -168,7 +168,7 @@ export default function AIMessage({ message }: { message: ChatMessage }) {
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex items-center gap-1.5 text-[10.5px] text-[#6e7681]">
           <span className="font-medium text-[#8b949e]">
-            CodeForge AI
+            MightGuy AI
           </span>
           <span>{formatTime(message.createdAt)}</span>
         </div>

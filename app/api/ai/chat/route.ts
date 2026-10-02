@@ -341,7 +341,7 @@ export async function POST(request: Request) {
   let usageStartedAt = 0;
 
   try {
-    // 1. Identify the logged-in CodeForge user
+    // 1. Identify the logged-in MightGuy user
     const { userId } = await auth();
 
     if (!userId) {

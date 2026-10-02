@@ -410,8 +410,8 @@ export async function createTag(tag: string) {
     ref: tag,
     message: tag,
     tagger: {
-      name: "CodeForge",
-      email: "codeforge@example.com",
+      name: "MightGuy",
+      email: "mightguy@example.com",
     },
   });
 }

@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="./public/logo.svg" width="88" height="88" alt="CodeForge logo" />
+<img src="./public/logo.svg" width="88" height="88" alt="MightGuy logo" />
 
-# CodeForge
+# MightGuy
 
 ### A dev machine that lives in a browser tab.
 
@@ -18,7 +18,7 @@ No install, no Docker, no `ssh` — just a URL.
 
 <br />
 
-<img src="./public/hero.svg" width="820" alt="CodeForge editor mockup — file explorer, code editor, and a running dev server in an integrated terminal" />
+<img src="./public/hero.svg" width="820" alt="MightGuy editor mockup — file explorer, code editor, and a running dev server in an integrated terminal" />
 
 </div>
 
@@ -159,7 +159,7 @@ npx prisma db push
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). CodeForge boots a
+Open [http://localhost:3000](http://localhost:3000). MightGuy boots a
 WebContainer client-side, so you need a browser with `SharedArrayBuffer`
 support (any recent Chrome, Edge, or Firefox) — the app sends its own
 cross-origin isolation headers, so there's nothing extra to configure.

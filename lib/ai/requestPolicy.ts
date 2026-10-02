@@ -33,12 +33,12 @@ export class AiRequestPolicyError extends Error {
 }
 
 const globalState = globalThis as typeof globalThis & {
-  __codeForgeAiPolicy?: PolicyState;
+  __mightGuyAiPolicy?: PolicyState;
 };
 
 const state: PolicyState =
-  globalState.__codeForgeAiPolicy ??
-  (globalState.__codeForgeAiPolicy = {
+  globalState.__mightGuyAiPolicy ??
+  (globalState.__mightGuyAiPolicy = {
     activeGlobal: 0,
     activeByUser: new Map(),
     queue: [],

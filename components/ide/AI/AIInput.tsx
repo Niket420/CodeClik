@@ -104,7 +104,7 @@ export default function AIInput({
               handleSend();
             }
           }}
-          placeholder="Ask CodeForge AI… (Shift+Enter for a new line)"
+          placeholder="Ask MightGuy AI… (Shift+Enter for a new line)"
           rows={3}
           className="h-16 w-full resize-none bg-transparent p-2 text-xs text-[#e6edf3] outline-none placeholder:text-[#6e7681]"
         />

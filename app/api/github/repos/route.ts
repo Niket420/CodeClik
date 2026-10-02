@@ -9,7 +9,7 @@ export async function GET() {
 
     if (!userId) {
       return NextResponse.json(
-        { error: "You must be signed in to CodeForge." },
+        { error: "You must be signed in to MightGuy." },
         { status: 401 }
       );
     }

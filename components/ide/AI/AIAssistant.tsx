@@ -475,7 +475,7 @@ async function handleSend() {
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-[#262626] px-3">
         <span className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em]">
           <Sparkles size={13} className="text-[#a371f7]" />
-          CODEFORGE AI
+          MIGHTGUY AI
         </span>
 
         {config && !pendingProviderId && !pickerOpen && (
@@ -577,7 +577,7 @@ async function handleSend() {
           subheading={
             config
               ? "Connect an additional provider to switch between them from the chat header."
-              : "Connect a provider to start chatting with CodeForge AI."
+              : "Connect a provider to start chatting with MightGuy AI."
           }
           onSelect={(provider) => {
             setPickerOpen(false);
@@ -592,7 +592,7 @@ async function handleSend() {
           </span>
           <p className="mt-4 text-sm font-medium text-[#e6edf3]">Configure your AI model</p>
           <p className="mt-1 max-w-[240px] text-xs leading-5 text-[#6e7681]">
-            Connect an AI provider to start using CodeForge AI inside your workspace.
+            Connect an AI provider to start using MightGuy AI inside your workspace.
           </p>
           <button
             type="button"

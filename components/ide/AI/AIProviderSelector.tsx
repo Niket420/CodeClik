@@ -14,7 +14,7 @@ type AIProviderSelectorProps = {
 export default function AIProviderSelector({
   providers = AI_PROVIDERS,
   heading = "Choose an AI provider",
-  subheading = "Connect a provider to start chatting with CodeForge AI.",
+  subheading = "Connect a provider to start chatting with MightGuy AI.",
   onSelect,
   onCancel,
 }: AIProviderSelectorProps) {

@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { WebContainer } from "@webcontainer/api";
 import {
   Blocks,
-  Code2,
   Files,
   GitBranch,
   Globe2,
@@ -26,6 +25,8 @@ import IDETerminal from "@/components/ide/Terminal";
 import GitSourceControl from "@/components/ide/GitSourceControl";
 import AIAssistant from "@/components/ide/AI/AIAssistant";
 import { ToastProvider } from "@/components/ui/toast";
+import SupportNotice from "@/components/ide/SupportNotice";
+import BrandMark from "@/components/brand/BrandMark";
 import { readBlobText, type GitLogEntry } from "@/lib/git";
 
 type OpenFile = {
@@ -190,8 +191,10 @@ export default function PlaygroundPage() {
         // errors to reach the agent.
         setPreviewOpen(true);
       });
-      setWebcontainer(wc);
+      // Load the tree before showing the IDE, so its first render already
+      // reflects the workspace (SupportNotice treats that as the baseline).
       await refreshFileTree(wc);
+      setWebcontainer(wc);
     }
 
     init();
@@ -202,9 +205,7 @@ export default function PlaygroundPage() {
       <ToastProvider>
         <main className="grid min-h-screen place-items-center bg-[#000000] text-[#c9d1d9]">
           <div className="flex flex-col items-center gap-4">
-            <span className="grid h-12 w-12 place-items-center rounded-xl border border-[#262626] bg-[#0a0a0a] text-white shadow-xl shadow-black/40">
-              <Code2 size={25} />
-            </span>
+            <BrandMark size={48} />
             <div className="text-center">
               <p className="text-sm font-medium text-white">
                 Preparing your workspace
@@ -223,6 +224,7 @@ export default function PlaygroundPage() {
   }
   return (
     <ToastProvider>
+      <SupportNotice fileTree={fileTree} />
       <main className="flex h-screen flex-col overflow-hidden bg-[#000000] font-sans text-[#e6edf3]">
         <header className="h-11 shrink-0 border-b border-[#262626]">
           <IDEHeader
@@ -241,9 +243,7 @@ export default function PlaygroundPage() {
 
         <div className="flex min-h-0 flex-1">
           <aside className="z-10 flex w-12 shrink-0 flex-col items-center border-r border-[#262626] bg-[#0a0a0a] py-3">
-            <div className="mb-4 grid h-8 w-8 place-items-center rounded-md bg-white text-black shadow-lg shadow-black/40">
-              <Code2 size={18} />
-            </div>
+            <BrandMark size={32} className="mb-4" />
 
             <nav className="flex flex-1 flex-col items-center gap-1">
               {activityItems.map(({ id, label, icon: Icon }) => {

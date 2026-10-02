@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'CodeForge — Build in the browser',
+  title: 'MightGuy — Build in the browser',
   description: 'A focused, browser-based development workspace.',
 }
 
