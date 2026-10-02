@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, Info, X } from "lucide-react";
-import { useToast } from "@/components/ui/toast";
+import { useState } from "react";
+import { useAuth } from "@clerk/nextjs";
+import { AlertTriangle, Check, Info, X } from "lucide-react";
 import type { FileTreeNode } from "@/types/file-tree";
 
 // The workspace runs Node.js inside the browser (WebContainer), so only the
@@ -39,19 +39,21 @@ const UNSUPPORTED_LANGUAGES: Record<string, string> = {
   pl: "Perl",
 };
 
-const SEEN_KEY = "support-notice-seen";
+// Remembered per Clerk session: every new sign-in is a new session, so the
+// card shows again after each sign-in but not on every reload.
+const seenKey = (sessionId: string) => `support-notice-seen:${sessionId}`;
 
-function readSeen(): boolean {
+function readSeen(sessionId: string): boolean {
   try {
-    return localStorage.getItem(SEEN_KEY) === "1";
+    return localStorage.getItem(seenKey(sessionId)) === "1";
   } catch {
     return false;
   }
 }
 
-function markSeen() {
+function markSeen(sessionId: string) {
   try {
-    localStorage.setItem(SEEN_KEY, "1");
+    localStorage.setItem(seenKey(sessionId), "1");
   } catch {
     // Storage blocked (private mode etc.) — the notice just shows again next time.
   }
@@ -72,55 +74,98 @@ function unsupportedLanguageFor(path: string): string | null {
   return UNSUPPORTED_LANGUAGES[extension] ?? null;
 }
 
+type UnsupportedWarning = { language: string; fileName: string };
+
 /**
- * First visit: a one-time card listing what the workspace can run.
- * Afterwards: a toast whenever a file in an unsupported language appears
- * (created from the explorer, the terminal, or the AI agent) — once per
- * language per session, so it informs without nagging.
+ * After each sign-in: a card listing what the workspace can run.
+ * Whenever a file in an unsupported language appears (created from the
+ * explorer, the terminal, or the AI agent): a warning card that stays until
+ * "Got it" is clicked — once per language per session, so it informs without
+ * nagging.
  */
 export default function SupportNotice({ fileTree }: { fileTree: FileTreeNode[] }) {
-  const { push: pushToast } = useToast();
-  // Only ever rendered client-side (the playground mounts it after the
-  // WebContainer boots), so localStorage can be read up front.
-  const [open, setOpen] = useState(() => !readSeen());
+  const { sessionId } = useAuth();
+  const [dismissedSession, setDismissedSession] = useState<string | null>(null);
+  const open = Boolean(sessionId) && dismissedSession !== sessionId && !readSeen(sessionId!);
 
-  const knownPaths = useRef<Set<string> | null>(null);
-  const warnedLanguages = useRef(new Set<string>());
+  // The first tree is whatever already existed (the IDE only mounts after it's
+  // loaded) — only files that appear after that are checked. Tracked as
+  // "previous tree" state so new files are detected during render.
+  const [previousTree, setPreviousTree] = useState(fileTree);
+  const [knownPaths, setKnownPaths] = useState(() => collectFilePaths(fileTree));
+  const [warnedLanguages, setWarnedLanguages] = useState<Set<string>>(() => new Set());
+  const [warnings, setWarnings] = useState<UnsupportedWarning[]>([]);
 
-  useEffect(() => {
+  if (fileTree !== previousTree) {
+    setPreviousTree(fileTree);
     const paths = collectFilePaths(fileTree);
-
-    // The first tree is whatever already existed (the IDE only mounts after
-    // it's loaded) — only warn about files that appear after that.
-    if (knownPaths.current === null) {
-      knownPaths.current = paths;
-      return;
-    }
+    const nextWarned = new Set(warnedLanguages);
+    const newWarnings: UnsupportedWarning[] = [];
 
     for (const path of paths) {
-      if (knownPaths.current.has(path)) continue;
-
+      if (knownPaths.has(path)) continue;
       const language = unsupportedLanguageFor(path);
-      if (language && !warnedLanguages.current.has(language)) {
-        warnedLanguages.current.add(language);
-        pushToast({
-          tone: "info",
-          title: `${language} can't run here`,
-          description: `You can edit ${path.split("/").pop()}, but this workspace only runs JavaScript and TypeScript projects (Node.js in your browser).`,
-        });
+      if (language && !nextWarned.has(language)) {
+        nextWarned.add(language);
+        newWarnings.push({ language, fileName: path.split("/").pop() ?? path });
       }
     }
 
-    knownPaths.current = paths;
-  }, [fileTree, pushToast]);
-
-  function dismiss() {
-    markSeen();
-    setOpen(false);
+    setKnownPaths(paths);
+    if (newWarnings.length > 0) {
+      setWarnedLanguages(nextWarned);
+      setWarnings((current) => [...current, ...newWarnings]);
+    }
   }
 
-  if (!open) return null;
+  function dismiss() {
+    if (sessionId) {
+      markSeen(sessionId);
+      setDismissedSession(sessionId);
+    }
+  }
 
+  return (
+    <>
+      {open && <WelcomeCard onDismiss={dismiss} />}
+      {warnings.length > 0 && <UnsupportedCard warnings={warnings} onDismiss={() => setWarnings([])} />}
+    </>
+  );
+}
+
+/** Stays until "Got it" — deliberately no auto-close and no close button. */
+function UnsupportedCard({ warnings, onDismiss }: { warnings: UnsupportedWarning[]; onDismiss: () => void }) {
+  const languages = warnings.map((warning) => warning.language).join(", ");
+
+  return (
+    <div
+      role="alertdialog"
+      aria-labelledby="unsupported-title"
+      className="fixed bottom-10 right-4 z-[150] w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-[#262626] border-l-2 border-l-[#e3b341] bg-[#0a0a0a] p-4 shadow-2xl shadow-black/60"
+    >
+      <div className="flex items-center gap-2">
+        <AlertTriangle size={15} className="shrink-0 text-[#e3b341]" />
+        <h2 id="unsupported-title" className="text-sm font-semibold text-white">
+          {`${languages} can't run here`}
+        </h2>
+      </div>
+      <p className="mt-2 text-[12px] leading-5 text-[#8b949e]">
+        You can edit {warnings.map((warning) => warning.fileName).join(", ")}, but this workspace only runs
+        JavaScript and TypeScript projects (Node.js in your browser).
+      </p>
+      <button
+        type="button"
+        autoFocus
+        onClick={onDismiss}
+        className="mt-4 w-full rounded-md bg-white py-2 text-xs font-semibold text-black transition hover:bg-[#d4d4d4]"
+      >
+        Got it
+      </button>
+    </div>
+  );
+}
+
+function WelcomeCard({ onDismiss: dismiss }: { onDismiss: () => void }) {
   return (
     <div className="fixed inset-0 z-[150] grid place-items-center bg-black/60 px-4" onClick={dismiss}>
       <div
