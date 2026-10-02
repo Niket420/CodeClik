@@ -26,7 +26,7 @@ export default function HomePage() {
         <Link href="/" className="group flex items-center gap-3">
           <BrandMark size={36} className="transition group-hover:scale-105" />
           <span className="text-base font-semibold tracking-tight text-white">
-            MightGuy
+            CodeClik
           </span>
         </Link>
 
@@ -80,7 +80,7 @@ export default function HomePage() {
             className="cf-fade-up mt-6 max-w-xl text-pretty text-base leading-7 text-[#9da9b5] sm:text-lg"
             style={{ animationDelay: "160ms" }}
           >
-            MightGuy pairs a familiar VS Code-inspired workspace with an in-browser terminal and a fast, distraction-free editor.
+            CodeClik pairs a familiar VS Code-inspired workspace with an in-browser terminal and a fast, distraction-free editor.
           </p>
 
           <div
@@ -134,7 +134,7 @@ export default function HomePage() {
                 <span className="h-2.5 w-2.5 rounded-full bg-[#3fb950]" />
               </div>
               <div className="mx-auto rounded-md border border-[#262626] bg-[#000000] px-4 py-1 font-mono text-[10px] text-[#8b949e]">
-                portfolio.tsx — MightGuy
+                portfolio.tsx — CodeClik
               </div>
               <Command size={14} className="text-[#8b949e]" />
             </div>

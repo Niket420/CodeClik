@@ -8,7 +8,7 @@ export async function GET() {
 
     if (!userId) {
       return NextResponse.json(
-        { success: false, error: "You must be signed in to MightGuy." },
+        { success: false, error: "You must be signed in to CodeClik." },
         { status: 401 }
       );
     }

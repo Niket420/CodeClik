@@ -45,7 +45,7 @@ export default function AIChat({
         <span className="grid h-11 w-11 place-items-center rounded-xl border border-[#262626] bg-[#121212] text-[#a371f7] shadow-lg shadow-black/20">
           <Sparkles size={20} />
         </span>
-        <p className="mt-4 text-sm font-medium text-[#e6edf3]">Ask MightGuy AI anything</p>
+        <p className="mt-4 text-sm font-medium text-[#e6edf3]">Ask CodeClik AI anything</p>
         <p className="mt-1 max-w-xs text-xs leading-5 text-[#6e7681]">
           Connected to {modelLabel}. Start a conversation about your code, or try a suggestion below.
         </p>

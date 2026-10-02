@@ -94,7 +94,7 @@ async function handleProxy(request: Request, path: string[]): Promise<Response> 
     return NextResponse.json({ error: "Unsupported git operation." }, { status: 403 });
   }
 
-  const headers: Record<string, string> = { "user-agent": "git/@mightguy-git-proxy" };
+  const headers: Record<string, string> = { "user-agent": "git/@codeclik-git-proxy" };
   for (const name of FORWARD_REQUEST_HEADERS) {
     const value = request.headers.get(name);
     if (value) headers[name] = value;

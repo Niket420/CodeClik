@@ -341,7 +341,7 @@ export async function POST(request: Request) {
   let usageStartedAt = 0;
 
   try {
-    // 1. Identify the logged-in MightGuy user
+    // 1. Identify the logged-in CodeClik user
     const { userId } = await auth();
 
     if (!userId) {

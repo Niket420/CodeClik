@@ -9,7 +9,7 @@ export async function POST(request: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        { error: "You must be signed in to MightGuy." },
+        { error: "You must be signed in to CodeClik." },
         { status: 401 }
       );
     }
