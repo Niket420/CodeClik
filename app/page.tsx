@@ -104,13 +104,16 @@ export default function HomePage() {
           </div>
 
           <div
-            className="cf-fade-up mt-10 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#8b949e]"
+            className="cf-fade-up mt-10 grid w-fit gap-x-8 gap-y-3 text-sm text-[#8b949e] sm:grid-cols-2"
             style={{ animationDelay: "320ms" }}
           >
             {[
-              "Browser-native terminal",
-              "Monaco-powered editing",
-              "Your work, in one place",
+              "AI agent that builds and tests",
+              "Bring your own AI model",
+              "Node.js terminal in the browser",
+              "Git & GitHub built in",
+              "Live preview as you code",
+              "Codebase-aware AI context",
             ].map((item) => (
               <span key={item} className="flex items-center gap-2">
                 <Check size={15} className="text-[#3fb950]" />
@@ -195,6 +198,8 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
     </main>
   );
 }
+
