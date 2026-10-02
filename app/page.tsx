@@ -4,7 +4,6 @@ import {
   Check,
   Command,
   Files,
-  Play,
   Sparkles,
   TerminalSquare,
 } from "lucide-react";
@@ -87,20 +86,24 @@ export default function HomePage() {
             className="cf-fade-up mt-9 flex flex-col gap-3 sm:flex-row"
             style={{ animationDelay: "240ms" }}
           >
-            <Link
-              href="/playground"
-              className="group inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black shadow-xl shadow-black/30 transition hover:bg-[#d4d4d4]"
-            >
-              Open your workspace
-              <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
-            </Link>
-            <a
-              href="#workspace"
-              className="inline-flex items-center justify-center gap-2 rounded-md border border-[#262626] bg-[#121212]/80 px-5 py-3 text-sm font-medium text-[#c9d1d9] transition hover:border-[#4b5563] hover:bg-[#1a1a1a] hover:text-white"
-            >
-              <Play size={15} fill="currentColor" />
-              Explore the workspace
-            </a>
+            {/* Signed out: sign in first, then land in the editor. */}
+            <Show when="signed-out">
+              <SignInButton forceRedirectUrl="/playground" signUpForceRedirectUrl="/playground">
+                <button className="group inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black shadow-xl shadow-black/30 transition hover:bg-[#d4d4d4]">
+                  Open your workspace
+                  <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
+                </button>
+              </SignInButton>
+            </Show>
+            <Show when="signed-in">
+              <Link
+                href="/playground"
+                className="group inline-flex items-center justify-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-semibold text-black shadow-xl shadow-black/30 transition hover:bg-[#d4d4d4]"
+              >
+                Open your workspace
+                <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
+              </Link>
+            </Show>
           </div>
 
           <div
