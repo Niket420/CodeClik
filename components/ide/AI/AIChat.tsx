@@ -9,8 +9,6 @@ import type { ChatMessage } from "./types";
 type AIChatProps = {
   messages: ChatMessage[];
   isGenerating: boolean;
-  /** Current agent step, shown instead of "Thinking" while set. */
-  activity?: string | null;
   pendingApproval?: PendingApproval | null;
   onApprovalDecision?: (approved: boolean) => void;
   modelLabel: string;
@@ -27,7 +25,6 @@ const SUGGESTIONS = [
 export default function AIChat({
   messages,
   isGenerating,
-  activity,
   pendingApproval,
   onApprovalDecision,
   modelLabel,
@@ -35,9 +32,13 @@ export default function AIChat({
 }: AIChatProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  // An agent run shows its own progress panel, so the generic indicator hides.
+  const lastAgentRun = messages[messages.length - 1]?.agent;
+  const agentWorking = Boolean(lastAgentRun && !lastAgentRun.done);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages.length, isGenerating, pendingApproval]);
+  }, [messages.length, isGenerating, pendingApproval, lastAgentRun?.steps.length]);
 
   if (messages.length === 0) {
     return (
@@ -74,13 +75,13 @@ export default function AIChat({
 
       {pendingApproval && onApprovalDecision ? (
         <AIApprovalCard approval={pendingApproval} onDecision={onApprovalDecision} />
-      ) : isGenerating && (
+      ) : isGenerating && !agentWorking && (
         <div className="flex items-center gap-2.5 px-3 py-2">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-[#a371f7]/15 text-[#a371f7]">
             <Sparkles size={13} />
           </span>
           <span className="flex min-w-0 items-center gap-1 text-[12px] text-[#8b949e]">
-            <span className="truncate">{activity ?? "Thinking"}</span>
+            <span className="truncate">Thinking</span>
             <span className="flex gap-0.5">
               <span className="h-1 w-1 animate-bounce rounded-full bg-[#8b949e] [animation-delay:-0.2s]" />
               <span className="h-1 w-1 animate-bounce rounded-full bg-[#8b949e] [animation-delay:-0.1s]" />

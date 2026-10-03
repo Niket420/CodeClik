@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import type { ChatMessage } from "./types";
+import AIAgentRun from "./AIAgentRun";
 
 function formatTime(timestamp: number) {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -173,14 +174,18 @@ export default function AIMessage({ message }: { message: ChatMessage }) {
           <span>{formatTime(message.createdAt)}</span>
         </div>
 
-        <div className="break-words text-[13px] leading-relaxed text-[#c9d1d9]">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={markdownComponents}
-          >
-            {message.content}
-          </ReactMarkdown>
-        </div>
+        {message.agent && <AIAgentRun run={message.agent} />}
+
+        {message.content && (
+          <div className="break-words text-[13px] leading-relaxed text-[#c9d1d9]">
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={markdownComponents}
+            >
+              {message.content}
+            </ReactMarkdown>
+          </div>
+        )}
       </div>
     </div>
   );

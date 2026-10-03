@@ -19,7 +19,7 @@ import AIProviderSelector from "./AIProviderSelector";
 import AIProviderSettings from "./AIProviderSettings";
 import AIChat from "./AIChat";
 import AIInput from "./AIInput";
-import { AI_PROVIDERS, type ChatMessage, type ContextMode, type ProviderConfig } from "./types";
+import { AI_PROVIDERS, type AgentRun, type AgentStep, type ChatMessage, type ContextMode, type ProviderConfig } from "./types";
 import { gatherContext, type OpenFile } from "./contextGather";
 import { useToast } from "@/components/ui/toast";
 import type { FileTreeNode } from "@/types/file-tree";
@@ -111,9 +111,6 @@ export default function AIAssistant({
   const [agentMode, setAgentMode] = useState(false);
 
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
-  // The agent's current tool step (e.g. "Writing package.json"), shown in
-  // place of the "Thinking" indicator while it runs.
-  const [agentActivity, setAgentActivity] = useState<string | null>(null);
   // Resolver for the agent's in-flight approval promise — kept in a ref so the
   // Allow/Deny buttons and clearMessages always settle the current one.
   const approvalResolver = useRef<((approved: boolean) => void) | null>(null);
@@ -289,13 +286,23 @@ async function handleSend() {
     if (agentMode) {
       if (!webcontainer) throw new Error("Workspace isn't ready yet.");
 
-      let transcript = "";
-      const appendToTranscript = (fragment: string) => {
-        transcript += fragment;
+      // The work (tool steps + in-between narration) goes into `run`, shown as
+      // a collapsible panel; only the final answer becomes the message text.
+      let run: AgentRun = { steps: [], thinking: "", done: false, startedAt: Date.now() };
+      let finalContent = "";
+      const updateRun = (change: (current: AgentRun) => AgentRun) => {
+        run = change(run);
         setMessages((previous) =>
-          previous.map((message) => (message.id === assistantId ? { ...message, content: transcript } : message)),
+          previous.map((message) =>
+            message.id === assistantId ? { ...message, content: finalContent, agent: run } : message,
+          ),
         );
       };
+      const setStepStatus = (id: string, status: AgentStep["status"], detail?: string) =>
+        updateRun((current) => ({
+          ...current,
+          steps: current.steps.map((step) => (step.id === id ? { ...step, status, detail } : step)),
+        }));
 
       const agent = new Agent({
         webcontainer,
@@ -304,29 +311,40 @@ async function handleSend() {
         onEvent: (event: AgentEvent) => {
           switch (event.type) {
             case "text":
-              setAgentActivity(null);
-              appendToTranscript(event.delta);
+              updateRun((current) => ({ ...current, thinking: current.thinking + event.delta }));
               break;
-            // Tool steps show as one live status line that each new step
-            // replaces; only failed or denied steps stay in the transcript.
             case "tool-call":
-              setAgentActivity(describeToolCall(event.call));
+              // Text streamed before a tool call was narration, not the answer.
+              updateRun((current) => {
+                const note = current.thinking.trim();
+                const steps: AgentStep[] = note
+                  ? [...current.steps, { id: `${event.call.id}-note`, kind: "note", label: note, status: "done" }]
+                  : [...current.steps];
+                steps.push({ id: event.call.id, kind: "tool", label: describeToolCall(event.call), status: "running" });
+                return { ...current, steps, thinking: "" };
+              });
               break;
             case "tool-result": {
               const result: ToolResult = event.result;
               if (result.success) {
+                setStepStatus(event.call.id, "done");
                 if (["write_file", "delete_file", "create_directory"].includes(event.call.name)) {
                   void onWorkspaceChange?.();
                 }
               } else if (result.error === "The user did not approve this action.") {
-                appendToTranscript(`\n\n> ${describeToolCall(event.call)} — denied`);
+                setStepStatus(event.call.id, "denied");
               } else {
-                appendToTranscript(`\n\n> ${describeToolCall(event.call)} — failed: ${result.error ?? "unknown error"}`);
+                setStepStatus(event.call.id, "failed", result.error ?? "unknown error");
               }
               break;
             }
+            case "done":
+              finalContent = event.finalText;
+              updateRun((current) => ({ ...current, thinking: "" }));
+              break;
             case "error":
-              appendToTranscript(`\n\nError: ${event.message}`);
+              finalContent = finalContent ? `${finalContent}\n\nError: ${event.message}` : `Error: ${event.message}`;
+              updateRun((current) => current);
               break;
           }
         },
@@ -345,7 +363,19 @@ async function handleSend() {
         .filter((message) => (message.role === "user" || message.role === "assistant") && message.content.trim())
         .map((message) => ({ role: message.role as "user" | "assistant", content: message.content }));
 
-      await agent.run(text, contextContent || undefined, history);
+      try {
+        await agent.run(text, contextContent || undefined, history);
+      } finally {
+        // Stopped mid-turn: keep whatever was streaming as the visible answer.
+        if (!finalContent && run.thinking.trim()) finalContent = run.thinking.trim();
+        updateRun((current) => ({
+          ...current,
+          thinking: "",
+          done: true,
+          endedAt: Date.now(),
+          steps: current.steps.map((step) => (step.status === "running" ? { ...step, status: "failed" } : step)),
+        }));
+      }
       return;
     }
 
@@ -454,7 +484,6 @@ async function handleSend() {
     );
   } finally {
     if (abortController.current === controller) abortController.current = null;
-    setAgentActivity(null);
     setIsGenerating(false);
   }
 }
@@ -672,7 +701,6 @@ async function handleSend() {
           <AIChat
             messages={messages}
             isGenerating={isGenerating}
-            activity={agentActivity}
             pendingApproval={pendingApproval}
             onApprovalDecision={resolveApproval}
             modelLabel={`${currentProvider?.name ?? "your provider"} · ${config.model}`}

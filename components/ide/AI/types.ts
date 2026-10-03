@@ -111,11 +111,32 @@ export const AI_PROVIDERS: AIProvider[] = [
 
 export type ChatRole = "user" | "assistant";
 
+export type AgentStep = {
+  id: string;
+  /** A tool action, or the model's in-between narration. */
+  kind: "tool" | "note";
+  label: string;
+  status: "running" | "done" | "failed" | "denied";
+  detail?: string;
+};
+
+/** Agent-mode work log, shown as a collapsible panel above the final answer. */
+export type AgentRun = {
+  steps: AgentStep[];
+  /** Text the model is streaming right now — final answer or a note, not known yet. */
+  thinking: string;
+  done: boolean;
+  startedAt: number;
+  endedAt?: number;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
+  /** For agent runs, only the final answer — the work log lives in `agent`. */
   content: string;
   createdAt: number;
+  agent?: AgentRun;
 };
 
 export type ContextMode = "current-file" | "selected-code" | "workspace" | "open-files";
