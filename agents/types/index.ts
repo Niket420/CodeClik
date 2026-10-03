@@ -53,6 +53,12 @@ export type Tool = {
   definition: ToolDefinition;
   /** Hard-to-reverse tools (delete, run arbitrary commands) must be confirmed before running. */
   requiresApproval: boolean;
+  /**
+   * Optional pre-check, run before asking for approval: throw a
+   * GuardrailViolationError for calls that can't work, so the user isn't
+   * asked to approve them.
+   */
+  validate?(args: Record<string, unknown>): void;
   execute(context: ToolContext, args: Record<string, unknown>): Promise<ToolResult>;
 };
 

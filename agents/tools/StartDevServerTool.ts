@@ -1,5 +1,5 @@
 import type { Tool } from "../types";
-import { guardCommand, truncateOutput } from "../executor/Guardrails";
+import { guardCommand, guardEnvironmentCommand, truncateOutput } from "../executor/Guardrails";
 import { startDevServer } from "../runtime/DevServer";
 
 const STARTUP_LOG_CHARS = 4_000;
@@ -7,6 +7,12 @@ const STARTUP_LOG_CHARS = 4_000;
 export const StartDevServerTool: Tool = {
   // Runs arbitrary code like run_command, so it's confirmed the same way.
   requiresApproval: true,
+  validate(args) {
+    const command = String(args.command ?? "");
+    const commandArgs = Array.isArray(args.args) ? args.args.map(String) : [];
+    guardCommand([command, ...commandArgs].join(" "));
+    guardEnvironmentCommand(command, commandArgs);
+  },
   definition: {
     name: "start_dev_server",
     description:

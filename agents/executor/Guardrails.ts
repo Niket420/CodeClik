@@ -88,6 +88,75 @@ export function guardCommand(command: string): void {
   }
 }
 
+// The WebContainer isn't a Linux box: its shell is jsh, and only Node.js
+// tooling exists. Models default to bash habits (bash -lc "sed … | grep …"),
+// which fail with exit code 127 and waste a step plus an approval click.
+// Rejecting them up front, with the right alternative, gets the model back on
+// track immediately.
+const UNAVAILABLE_PROGRAMS: Record<string, string> = {
+  bash: "There's no bash (the shell is jsh). Run the program directly, e.g. command \"npm\", args [\"run\", \"build\"].",
+  sh: "There's no sh (the shell is jsh). Run the program directly, e.g. command \"npm\", args [\"run\", \"build\"].",
+  zsh: "There's no zsh (the shell is jsh). Run the program directly.",
+  sed: "sed isn't available. Use read_file to read a file, and write_file to change it.",
+  awk: "awk isn't available. Use read_file to read a file.",
+  grep: "grep isn't available. Use read_file, or list_directory to find files.",
+  egrep: "egrep isn't available. Use read_file, or list_directory to find files.",
+  head: "head isn't available. Use read_file.",
+  tail: "tail isn't available. Use read_file.",
+  cat: "Use read_file to read a file, and write_file to create one.",
+  less: "Use read_file to read a file.",
+  find: "find isn't available. Use list_directory.",
+  xargs: "xargs isn't available. Use the file tools.",
+  touch: "Use write_file to create a file.",
+  rm: "Use delete_file to delete a file.",
+  mkdir: "Use create_directory to create a folder.",
+  mv: "mv isn't available. Read the file with read_file, write it to the new path with write_file, then delete_file the old one.",
+  cp: "cp isn't available. Read the file with read_file and write the copy with write_file.",
+  python: "Python isn't available — only Node.js runs here. Write the script in JavaScript and run it with node.",
+  python3: "Python isn't available — only Node.js runs here. Write the script in JavaScript and run it with node.",
+  pip: "pip isn't available — only Node.js runs here. Use npm packages instead.",
+  pip3: "pip isn't available — only Node.js runs here. Use npm packages instead.",
+  git: "The git command isn't available. The user commits and pushes from the Source Control panel.",
+  curl: "curl isn't available. Use fetch() in a small Node script if you need an HTTP request.",
+  wget: "wget isn't available. Use fetch() in a small Node script if you need an HTTP request.",
+  sudo: "sudo isn't available and isn't needed.",
+  apt: "System packages can't be installed. Use npm packages.",
+  "apt-get": "System packages can't be installed. Use npm packages.",
+  brew: "System packages can't be installed. Use npm packages.",
+  docker: "Docker isn't available. Databases and services can't run here — use in-memory data or JSON files.",
+};
+
+// Arguments that only mean something to a shell. Commands run as one program
+// with arguments (no shell), so these would be passed through literally.
+const SHELL_OPERATORS = new Set(["|", "||", "&&", "&", ";", ">", ">>", "<", "2>", "2>&1", "&>"]);
+
+/**
+ * Throws a GuardrailViolationError, with the alternative to use, when a
+ * command can't work in the WebContainer.
+ */
+export function guardEnvironmentCommand(command: string, args: string[]): void {
+  const program = command.trim();
+
+  if (/\s/.test(program)) {
+    throw new GuardrailViolationError(
+      `"command" must be a single program name. Put the rest in "args", e.g. command "npm", args ["install", "react"].`,
+    );
+  }
+
+  const name = program.split("/").pop()!.toLowerCase();
+  const hint = UNAVAILABLE_PROGRAMS[name];
+  if (hint) {
+    throw new GuardrailViolationError(`"${name}" doesn't work here. ${hint}`);
+  }
+
+  const operator = args.find((arg) => SHELL_OPERATORS.has(arg.trim()));
+  if (operator) {
+    throw new GuardrailViolationError(
+      `"${operator}" doesn't work: commands run as a single program, not through a shell, so pipes, redirects and chaining aren't supported. Run one command per call.`,
+    );
+  }
+}
+
 export function truncateOutput(text: string, limit: number = MAX_COMMAND_OUTPUT_CHARS): string {
   if (text.length <= limit) return text;
 

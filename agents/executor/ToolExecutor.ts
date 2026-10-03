@@ -30,6 +30,16 @@ export async function executeToolCall(
     return { success: false, output: "", error: `Unknown tool "${call.name}".` };
   }
 
+  // Reject impossible calls before bothering the user with an approval.
+  try {
+    tool.validate?.(call.arguments);
+  } catch (error) {
+    if (error instanceof GuardrailViolationError) {
+      return { success: false, output: "", error: error.message };
+    }
+    throw error;
+  }
+
   if (tool.requiresApproval) {
     const approved = await context.requestApproval({
       toolName: call.name,

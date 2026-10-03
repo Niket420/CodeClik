@@ -1,21 +1,27 @@
 import type { Tool } from "../types";
-import { guardCommand, Limits, truncateOutput } from "../executor/Guardrails";
+import { guardCommand, guardEnvironmentCommand, Limits, truncateOutput } from "../executor/Guardrails";
 
 export const RunCommandTool: Tool = {
   // Arbitrary command execution — always confirmed by the user first, even
   // though it's sandboxed inside the WebContainer VM rather than the user's
   // real machine. See executor/Guardrails.ts.
   requiresApproval: true,
+  validate(args) {
+    const command = String(args.command ?? "");
+    const commandArgs = Array.isArray(args.args) ? args.args.map(String) : [];
+    guardCommand([command, ...commandArgs].join(" "));
+    guardEnvironmentCommand(command, commandArgs);
+  },
   definition: {
     name: "run_command",
     description:
-      "Run a shell command in the project's sandboxed dev environment (e.g. installing a package, running a build or test). Requires user approval.",
+      "Run one program that finishes (e.g. npm install, npm run build, node script.js) in the in-browser WebContainer. Not a shell: no bash, pipes (|), redirects (>) or chaining (&&, ;). Only Node.js tools exist (node, npm, npx). Waits for the program to exit; killed after 60 seconds. Requires user approval.",
     parameters: {
       type: "object",
       properties: {
         command: {
           type: "string",
-          description: "The executable to run, e.g. \"npm\".",
+          description: "A single program name, e.g. \"npm\", \"npx\" or \"node\" — nothing else.",
         },
         args: {
           type: "array",
