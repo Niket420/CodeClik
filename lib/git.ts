@@ -18,6 +18,67 @@ export type GitLogEntry = ReadCommitResult;
 // tolerate a missing HEAD by treating it as "no commits yet" — only commit()
 // crashes on it. So this can't be left to run once behind an "Initialize" button;
 // it has to self-heal on every read, before anything gets a chance to trip on it.
+// Things no project should track: installed packages, build output, caches,
+// logs, local secrets. Written to .git/info/exclude — git's own local-only
+// ignore file (never committed or pushed) — so they're skipped in every repo,
+// with or without a .gitignore. Like any ignore rule it only affects untracked
+// files: a repo that deliberately commits e.g. dist/ keeps tracking it.
+// Ignored folders aren't even walked, so `npm install` no longer makes
+// status scan thousands of package files.
+const BUILT_IN_IGNORES = [
+  "node_modules/",
+  "dist/",
+  "build/",
+  ".next/",
+  ".vite/",
+  ".turbo/",
+  ".cache/",
+  "coverage/",
+  "*.log",
+  ".DS_Store",
+  ".env",
+  ".env.*",
+  "!.env.example",
+  "!.env.sample",
+];
+const BUILT_IN_IGNORES_MARKER = "# CodeClik built-in ignores";
+
+/** Default .gitignore for projects initialized here, so the rules travel with the repo. */
+const DEFAULT_GITIGNORE = `# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+.vite/
+coverage/
+
+# Logs and OS files
+*.log
+.DS_Store
+
+# Local secrets
+.env
+.env.*
+!.env.example
+`;
+
+async function ensureBuiltInIgnores() {
+  const excludePath = ".git/info/exclude";
+  const current = await gitFs.promises.readFile(excludePath, "utf8").catch(() => "");
+  const text = typeof current === "string" ? current : "";
+
+  if (text.includes(BUILT_IN_IGNORES_MARKER)) return;
+
+  await gitFs.promises.mkdir(".git/info").catch(() => {});
+  const separator = text && !text.endsWith("\n") ? "\n" : "";
+  await gitFs.promises.writeFile(
+    excludePath,
+    `${text}${separator}${BUILT_IN_IGNORES_MARKER}\n${BUILT_IN_IGNORES.join("\n")}\n`
+  );
+}
+
 async function ensureHead() {
   const gitdirExists = await gitFs.promises
     .stat(".git")
@@ -25,6 +86,9 @@ async function ensureHead() {
     .catch(() => false);
 
   if (!gitdirExists) return;
+
+  // Every repo — new, cloned or agent-built — gets the built-in ignores.
+  await ensureBuiltInIgnores();
 
   const head = await gitFs.promises.readFile(".git/HEAD", "utf8").catch(() => null);
 
@@ -41,6 +105,15 @@ export async function initGit() {
     dir: ".",
     defaultBranch: "main",
   });
+
+  // Give new repos a standard .gitignore (never overwrite an existing one).
+  const hasGitignore = await gitFs.promises
+    .stat(".gitignore")
+    .then(() => true)
+    .catch(() => false);
+  if (!hasGitignore) {
+    await gitFs.promises.writeFile(".gitignore", DEFAULT_GITIGNORE);
+  }
 
   await ensureHead();
 }
