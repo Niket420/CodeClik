@@ -120,8 +120,8 @@ tokens, and proxy git traffic (browsers can't call github.com directly).
 **Prerequisites:** Node.js 18+, a PostgreSQL database, a [Clerk](https://clerk.com) app, and — for GitHub features — your own [GitHub App](https://docs.github.com/en/apps/creating-github-apps).
 
 ```bash
-git clone https://github.com/Niket420/vibe_coding_platform.git
-cd vibe_coding_platform/my-app
+git clone https://github.com/Niket420/CodeClik.git
+cd CodeClik
 npm install
 ```
 
