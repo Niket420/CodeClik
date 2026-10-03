@@ -27,7 +27,7 @@ import AIAssistant from "@/components/ide/AI/AIAssistant";
 import { ToastProvider } from "@/components/ui/toast";
 import SupportNotice from "@/components/ide/SupportNotice";
 import BrandMark from "@/components/brand/BrandMark";
-import { readBlobText, type GitLogEntry } from "@/lib/git";
+import { getWorkingDiff, readBlobText, type GitLogEntry } from "@/lib/git";
 
 type OpenFile = {
   path: string;
@@ -173,6 +173,59 @@ export default function PlaygroundPage() {
     setActiveDiffId(id);
   }
 
+  // Diff for a file in Source Control's Changes / Staged Changes, like VS Code's
+  // "(Working Tree)" / "(Index)" views. Always re-read: these change as you edit.
+  async function openWorkingDiff(filepath: string, kind: "unstaged" | "staged") {
+    const id = `${kind}:${filepath}`;
+    const { original, modified } = await getWorkingDiff(filepath, kind);
+    const tab: DiffTab = {
+      id,
+      path: filepath,
+      label: `${filepath.split("/").pop()} (${kind === "unstaged" ? "Working Tree" : "Index"})`,
+      original,
+      modified,
+    };
+
+    setDiffTabs((previousDiffs) =>
+      previousDiffs.some((diff) => diff.id === id)
+        ? previousDiffs.map((diff) => (diff.id === id ? tab : diff))
+        : [...previousDiffs, tab],
+    );
+    setActiveDiffId(id);
+  }
+
+  // After a discard rewrote or deleted files on disk: reload their open tabs
+  // (so a later save can't write the old text back) and drop stale diff tabs.
+  async function syncDiscardedFiles(paths: string[]) {
+    if (!webcontainer) return;
+    const discarded = new Set(paths);
+
+    const contents = new Map<string, string | null>();
+    for (const path of paths) {
+      contents.set(path, await webcontainer.fs.readFile(path, "utf-8").catch(() => null));
+    }
+
+    setOpenedFiles((previousFiles) =>
+      previousFiles.flatMap((file) => {
+        if (!discarded.has(file.path)) return [file];
+        const content = contents.get(file.path);
+        return content === null || content === undefined ? [] : [{ ...file, content, isDirty: false }];
+      }),
+    );
+    setActiveFilePath((current) =>
+      discarded.has(current) && contents.get(current) === null ? "" : current,
+    );
+
+    const isStale = (diff: DiffTab) =>
+      [...discarded].some((path) => diff.id === `unstaged:${path}` || diff.id === `staged:${path}`);
+    setDiffTabs((previousDiffs) => previousDiffs.filter((diff) => !isStale(diff)));
+    setActiveDiffId((current) =>
+      current && [...discarded].some((path) => current === `unstaged:${path}` || current === `staged:${path}`)
+        ? null
+        : current,
+    );
+  }
+
   function handleSelectActivity(id: string) {
     if (activeActivity === id && sidebarOpen) {
       setSidebarOpen(false);
@@ -313,6 +366,8 @@ export default function PlaygroundPage() {
                         }}
                         onOpenDiff={openDiff}
                         onChangeCount={setGitChangeCount}
+                        onOpenWorkingDiff={openWorkingDiff}
+                        onFilesDiscarded={syncDiscardedFiles}
                       />
                     </div>
 

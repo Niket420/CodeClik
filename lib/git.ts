@@ -245,6 +245,109 @@ export async function readBlobText(oid: string | null) {
 }
 
 /* -------------------------------------------------------------------------- */
+/* Working-tree diffs & discard                                                */
+/* -------------------------------------------------------------------------- */
+
+/** Blob id of `filepath` in the index (staging area), or null if it isn't there. */
+async function indexOid(filepath: string): Promise<string | null> {
+  let oid: string | null = null;
+
+  await git.walk({
+    fs: gitFs,
+    dir: ".",
+    trees: [git.STAGE()],
+    map: async (path, [entry]) => {
+      if (path === ".") return true;
+      if (path === filepath) {
+        oid = entry ? await entry.oid() : null;
+        return null;
+      }
+      // Only descend into folders on the way to the file.
+      return filepath.startsWith(`${path}/`) ? true : null;
+    },
+  });
+
+  return oid;
+}
+
+/** Blob id of `filepath` in the last commit, or null (new file / no commits). */
+async function headOid(filepath: string): Promise<string | null> {
+  try {
+    const commitOid = await git.resolveRef({ fs: gitFs, dir: ".", ref: "HEAD" });
+    const { oid } = await git.readBlob({ fs: gitFs, dir: ".", oid: commitOid, filepath });
+    return oid;
+  } catch {
+    return null;
+  }
+}
+
+async function writeBlobToWorkdir(filepath: string, oid: string) {
+  const { blob } = await git.readBlob({ fs: gitFs, dir: ".", oid });
+  const parent = filepath.split("/").slice(0, -1).join("/");
+  if (parent) await gitFs.promises.mkdir(parent);
+  await gitFs.promises.writeFile(filepath, blob);
+}
+
+/**
+ * Before/after text for a file in Source Control, like VS Code:
+ * - "unstaged" (Changes): staged version → file on disk ("Working Tree")
+ * - "staged" (Staged Changes): last commit → staged version ("Index")
+ */
+export async function getWorkingDiff(
+  filepath: string,
+  kind: "unstaged" | "staged"
+): Promise<{ original: string; modified: string }> {
+  await getWebContainer();
+
+  const staged = await indexOid(filepath);
+
+  if (kind === "staged") {
+    return {
+      original: await readBlobText(await headOid(filepath)),
+      modified: await readBlobText(staged),
+    };
+  }
+
+  const onDisk = await gitFs.promises.readFile(filepath, "utf8").catch(() => "");
+  return {
+    original: await readBlobText(staged),
+    modified: typeof onDisk === "string" ? onDisk : "",
+  };
+}
+
+/**
+ * Throws away a file's unstaged edits: restores the staged version, or
+ * deletes the file if git has never seen it (untracked).
+ */
+export async function discardUnstaged(filepath: string) {
+  await getWebContainer();
+
+  const staged = await indexOid(filepath);
+  if (staged) {
+    await writeBlobToWorkdir(filepath, staged);
+  } else {
+    await gitFs.promises.unlink(filepath).catch(() => {});
+  }
+}
+
+/**
+ * Reverts a file completely to the last commit — staged and unstaged edits
+ * both go. A file that's new since the last commit is removed.
+ */
+export async function discardStaged(filepath: string) {
+  await getWebContainer();
+
+  const committed = await headOid(filepath);
+  if (committed) {
+    await git.resetIndex({ fs: gitFs, dir: ".", filepath });
+    await writeBlobToWorkdir(filepath, committed);
+  } else {
+    await git.remove({ fs: gitFs, dir: ".", filepath });
+    await gitFs.promises.unlink(filepath).catch(() => {});
+  }
+}
+
+/* -------------------------------------------------------------------------- */
 /* Branches                                                                    */
 /* -------------------------------------------------------------------------- */
 

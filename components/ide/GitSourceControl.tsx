@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Tag,
   Trash2,
+  Undo2,
   Upload,
 } from "lucide-react";
 
@@ -53,6 +54,8 @@ import {
   pushRemote,
   mergeBranch,
   startFreshHistory,
+  discardUnstaged,
+  discardStaged,
   MergeBlockedError,
   type GitLogEntry,
 } from "@/lib/git";
@@ -94,6 +97,10 @@ type GitSourceControlProps = {
   onOpenDiff?: (entry: GitLogEntry, filepath: string) => void;
   /** Number of files with changes (staged, unstaged or new) — for the activity-bar badge. */
   onChangeCount?: (count: number) => void;
+  /** Open a before/after diff for a file in Changes ("unstaged") or Staged Changes ("staged"). */
+  onOpenWorkingDiff?: (filepath: string, kind: "unstaged" | "staged") => void;
+  /** Files whose contents changed on disk because of a discard — so open editor tabs can reload. */
+  onFilesDiscarded?: (filepaths: string[]) => void | Promise<void>;
 };
 
 
@@ -138,7 +145,13 @@ function relativeTime(unixSeconds: number) {
   return `${Math.floor(months / 12)}y ago`;
 }
 
-export default function GitSourceControl({ onRefreshExplorer, onOpenDiff, onChangeCount }: GitSourceControlProps) {
+export default function GitSourceControl({
+  onRefreshExplorer,
+  onOpenDiff,
+  onChangeCount,
+  onOpenWorkingDiff,
+  onFilesDiscarded,
+}: GitSourceControlProps) {
   const [initialized, setInitialized] = useState<boolean | null>(null);
   const [status, setStatus] = useState<GitStatusRow[]>([]);
   const [history, setHistory] = useState<GitLogEntry[]>([]);
@@ -283,6 +296,34 @@ export default function GitSourceControl({ onRefreshExplorer, onOpenDiff, onChan
 function handleClone() {
   setGithubPickerOpen(true);
 }
+  async function handleDiscard(paths: string[], kind: "unstaged" | "staged") {
+    if (paths.length === 0) return;
+    const what = paths.length === 1 ? `"${paths[0]}"` : `${paths.length} files`;
+    const message =
+      kind === "unstaged"
+        ? `Discard changes to ${what}?\n\nUnstaged edits are lost, and new files that were never staged are deleted. This can't be undone.`
+        : `Discard all changes to ${what}?\n\nThey go back to the last commit — staged and unstaged edits are lost, and new files are deleted. This can't be undone.`;
+    if (!confirm(message)) return;
+
+    try {
+      setLoading(true);
+      for (const path of paths) {
+        if (kind === "unstaged") await discardUnstaged(path);
+        else await discardStaged(path);
+      }
+      await refreshGit();
+      await onRefreshExplorer?.();
+      await onFilesDiscarded?.(paths);
+      notify(paths.length === 1 ? `Discarded changes to ${paths[0]}.` : `Discarded changes to ${paths.length} files.`, "success");
+    } catch (error) {
+      console.error("Discard error:", error);
+      notify("Could not discard changes.", "error");
+      await refreshGit();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleStage(path: string) {
     try {
       await stageFile(path);
@@ -1148,6 +1189,17 @@ function handleClone() {
                     {changedFiles.length}
                   </span>
                 )}
+                {changedFiles.length > 0 && (
+                  <button
+                    type="button"
+                    title="Discard all changes"
+                    disabled={loading}
+                    onClick={() => handleDiscard(changedFiles.map(([path]) => path), "unstaged")}
+                    className="ml-auto grid h-5 w-5 place-items-center rounded text-[#8b949e] hover:bg-[#262626] hover:text-white disabled:opacity-40"
+                  >
+                    <Undo2 size={13} />
+                  </button>
+                )}
               </div>
 
               {changedFiles.length === 0 ? (
@@ -1159,15 +1211,29 @@ function handleClone() {
 
                   return (
                     <div key={path} className="group flex h-7 items-center gap-2 px-3 hover:bg-[#1a1a1a]">
-                      <span className="min-w-0 flex-1 truncate text-xs" title={path}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenWorkingDiff?.(path, "unstaged")}
+                        className="min-w-0 flex-1 truncate text-left text-xs"
+                        title={`${path} — view changes`}
+                      >
                         <span className="text-[#e6edf3]">{name}</span>
                         {dir && <span className="ml-1.5 text-[#6e7681]">{dir}</span>}
-                      </span>
+                      </button>
                       {badge && (
                         <span className={`shrink-0 text-[11px] font-semibold ${badge.className}`}>
                           {badge.letter}
                         </span>
                       )}
+                      <button
+                        type="button"
+                        title="Discard changes"
+                        disabled={loading}
+                        onClick={() => handleDiscard([path], "unstaged")}
+                        className="grid h-5 w-5 shrink-0 place-items-center rounded opacity-0 hover:bg-[#262626] group-hover:opacity-100 disabled:opacity-40"
+                      >
+                        <Undo2 size={13} />
+                      </button>
                       <button
                         type="button"
                         title="Stage changes"
@@ -1190,6 +1256,17 @@ function handleClone() {
                     {stagedFiles.length}
                   </span>
                 )}
+                {stagedFiles.length > 0 && (
+                  <button
+                    type="button"
+                    title="Discard all staged changes"
+                    disabled={loading}
+                    onClick={() => handleDiscard(stagedFiles.map(([path]) => path), "staged")}
+                    className="ml-auto grid h-5 w-5 place-items-center rounded text-[#8b949e] hover:bg-[#262626] hover:text-white disabled:opacity-40"
+                  >
+                    <Undo2 size={13} />
+                  </button>
+                )}
               </div>
 
               {stagedFiles.length === 0 ? (
@@ -1201,15 +1278,29 @@ function handleClone() {
 
                   return (
                     <div key={path} className="group flex h-7 items-center gap-2 px-3 hover:bg-[#1a1a1a]">
-                      <span className="min-w-0 flex-1 truncate text-xs" title={path}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenWorkingDiff?.(path, "staged")}
+                        className="min-w-0 flex-1 truncate text-left text-xs"
+                        title={`${path} — view staged changes`}
+                      >
                         <span className="text-[#e6edf3]">{name}</span>
                         {dir && <span className="ml-1.5 text-[#6e7681]">{dir}</span>}
-                      </span>
+                      </button>
                       {badge && (
                         <span className={`shrink-0 text-[11px] font-semibold ${badge.className}`}>
                           {badge.letter}
                         </span>
                       )}
+                      <button
+                        type="button"
+                        title="Discard changes (back to last commit)"
+                        disabled={loading}
+                        onClick={() => handleDiscard([path], "staged")}
+                        className="grid h-5 w-5 shrink-0 place-items-center rounded opacity-0 hover:bg-[#262626] group-hover:opacity-100 disabled:opacity-40"
+                      >
+                        <Undo2 size={13} />
+                      </button>
                       <button
                         type="button"
                         title="Unstage changes"
