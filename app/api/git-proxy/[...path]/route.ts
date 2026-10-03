@@ -26,6 +26,10 @@ const FORWARD_REQUEST_HEADERS = [
   "accept",
   "accept-encoding",
   "accept-language",
+  // Carries the user's GitHub token. Without it every authenticated
+  // operation (push, private clone/pull) reaches GitHub anonymously → 401.
+  // Safe to forward: requests only ever go to ALLOWED_HOSTS below.
+  "authorization",
   "content-type",
   "git-protocol",
 ];

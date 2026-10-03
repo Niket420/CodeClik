@@ -4,6 +4,9 @@ import http from "isomorphic-git/http/web";
 import { getWebContainer } from "@/lib/webcontainer";
 import { gitFs } from "@/lib/git-fs";
 
+/** Our own git proxy route (app/api/git-proxy) — see cloneRepository. */
+const GIT_CORS_PROXY = "/api/git-proxy";
+
 export type GitLogEntry = ReadCommitResult;
 
 /* -------------------------------------------------------------------------- */
@@ -263,6 +266,10 @@ export async function fetchRemote(
     http,
     dir: ".",
     remote,
+    // Browsers can't call github.com directly (CORS), so go through our proxy.
+    // Repos cloned here already have this saved in their git config, but
+    // repos created here with a remote added by hand don't.
+    corsProxy: GIT_CORS_PROXY,
     onAuth: token
       ? () => ({ username: "x-access-token", password: token })
       : undefined,
@@ -285,6 +292,10 @@ export async function pullRemote(
     http,
     dir: ".",
     remote,
+    // Browsers can't call github.com directly (CORS), so go through our proxy.
+    // Repos cloned here already have this saved in their git config, but
+    // repos created here with a remote added by hand don't.
+    corsProxy: GIT_CORS_PROXY,
     ref,
     singleBranch: true,
     onAuth: token
@@ -309,6 +320,10 @@ export async function pushRemote(
     http,
     dir: ".",
     remote,
+    // Browsers can't call github.com directly (CORS), so go through our proxy.
+    // Repos cloned here already have this saved in their git config, but
+    // repos created here with a remote added by hand don't.
+    corsProxy: GIT_CORS_PROXY,
     ref,
     onAuth: token
       ? () => ({ username: "x-access-token", password: token })
@@ -362,7 +377,7 @@ export async function cloneRepository(
     noTags: true,
     onAuth,
     onProgress: options?.onProgress,
-    corsProxy: "/api/git-proxy",
+    corsProxy: GIT_CORS_PROXY,
   };
 
   if (!options?.force) {
@@ -419,6 +434,64 @@ export async function createTag(tag: string) {
 /* -------------------------------------------------------------------------- */
 /* Current branch                                                             */
 /* -------------------------------------------------------------------------- */
+
+export type MergeOutcome = "merged" | "fast-forward" | "already-up-to-date";
+
+/** Thrown when a merge can't run or can't finish cleanly; message is user-facing. */
+export class MergeBlockedError extends Error {}
+
+/**
+ * Merges `theirs` into the current branch, like `git merge <theirs>`.
+ * Requires a clean working tree (as VS Code does), and leaves everything
+ * untouched if there are conflicts — isomorphic-git can't pause a merge
+ * mid-way for manual resolution the way the git CLI can.
+ */
+export async function mergeBranch(
+  theirs: string,
+  author: { name: string; email: string }
+): Promise<MergeOutcome> {
+  await getWebContainer();
+
+  const ours = await getCurrentBranch();
+  if (!ours) {
+    throw new MergeBlockedError("Switch to a branch before merging.");
+  }
+
+  // statusMatrix rows: [file, HEAD, workdir, stage]; 1/1/1 means unchanged.
+  const matrix = await getGitStatus();
+  const dirty = matrix.some(([, head, workdir, stage]) => !(head === 1 && workdir === 1 && stage === 1));
+  if (dirty) {
+    throw new MergeBlockedError("Commit or discard your changes before merging.");
+  }
+
+  let result;
+  try {
+    result = await git.merge({
+      fs: gitFs,
+      dir: ".",
+      ours,
+      theirs,
+      author,
+      message: `Merge branch '${theirs}' into ${ours}`,
+    });
+  } catch (error) {
+    const code = (error as { code?: string })?.code;
+    if (code === "MergeConflictError" || code === "MergeNotSupportedError") {
+      throw new MergeBlockedError(
+        `"${theirs}" and "${ours}" changed the same lines, so they can't be merged automatically. Nothing was changed.`
+      );
+    }
+    throw error;
+  }
+
+  if (result.alreadyMerged) return "already-up-to-date";
+
+  // merge() moves the branch to the new commit; check it out so the files
+  // in the editor match. Safe: the working tree was clean.
+  await git.checkout({ fs: gitFs, dir: ".", ref: ours, force: true });
+
+  return result.fastForward ? "fast-forward" : "merged";
+}
 
 export async function getCurrentBranch() {
   await getWebContainer();

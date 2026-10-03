@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -45,7 +45,14 @@ type TreeActions = {
   commitRename: () => void;
   cancelRename: () => void;
   openContextMenu: (event: React.MouseEvent, node: FileTreeNode) => void;
+  creating: Creating | null;
+  setCreateValue: (value: string) => void;
+  commitCreate: () => void;
+  cancelCreate: () => void;
 };
+
+/** An in-progress "New File"/"New Folder" — an inline input row in the tree. */
+type Creating = { dir: string; type: "file" | "directory"; value: string };
 
 const TreeContext = createContext<TreeActions | null>(null);
 
@@ -60,12 +67,51 @@ function parentDir(path: string) {
   return path.split("/").slice(0, -1).join("/");
 }
 
+function CreateRow({ level }: { level: number }) {
+  const ctx = useContext(TreeContext)!;
+  if (!ctx.creating) return null;
+  const isFolder = ctx.creating.type === "directory";
+
+  return (
+    <div className="flex h-7 items-center gap-1.5 px-2" style={{ paddingLeft: `${level * 14 + 8}px` }}>
+      {isFolder ? (
+        <>
+          <ChevronRight size={14} className="shrink-0 text-[#8b949e]" />
+          <Folder size={15} className="shrink-0 text-[#e3b341]" />
+        </>
+      ) : (
+        <>
+          <span className="w-[14px] shrink-0" />
+          <File size={15} className={`shrink-0 ${fileColor(ctx.creating.value)}`} />
+        </>
+      )}
+      <input
+        autoFocus
+        value={ctx.creating.value}
+        placeholder={isFolder ? "Folder name" : "File name"}
+        onChange={(event) => ctx.setCreateValue(event.target.value)}
+        onBlur={ctx.commitCreate}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            ctx.commitCreate();
+          }
+          if (event.key === "Escape") ctx.cancelCreate();
+        }}
+        spellCheck={false}
+        className="min-w-0 flex-1 rounded border border-[#4b5563] bg-[#000000] px-1 text-[13px] text-white outline-none placeholder:text-[#6e7681]"
+      />
+    </div>
+  );
+}
+
 function TreeNode({ node, level }: { node: FileTreeNode; level: number }) {
   const [expanded, setExpanded] = useState(true);
   const ctx = useContext(TreeContext)!;
   const isDirectory = node.type === "directory";
   const isActive = !isDirectory && node.path === ctx.activeFilePath;
   const isRenaming = ctx.renamingPath === node.path;
+  const isCreatingHere = isDirectory && ctx.creating?.dir === node.path;
 
   if (node.name === "node_modules") return null;
 
@@ -136,11 +182,14 @@ function TreeNode({ node, level }: { node: FileTreeNode; level: number }) {
         )}
       </div>
 
-      {isDirectory &&
-        expanded &&
-        node.children?.map((child) => (
-          <TreeNode key={child.path} node={child} level={level + 1} />
-        ))}
+      {isDirectory && (expanded || isCreatingHere) && (
+        <>
+          {isCreatingHere && <CreateRow level={level + 1} />}
+          {node.children?.map((child) => (
+            <TreeNode key={child.path} node={child} level={level + 1} />
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -225,6 +274,10 @@ export default function FileExplorer({
 }: FileExplorerProps) {
   const [menu, setMenu] = useState<{ x: number; y: number; node: FileTreeNode } | null>(null);
   const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(null);
+  const [creating, setCreating] = useState<Creating | null>(null);
+  // Set once a create is committed or cancelled, so the blur that follows
+  // Enter/Escape (when the input unmounts) can't run it a second time.
+  const createSettled = useRef(true);
 
   function resolveDir(node?: FileTreeNode) {
     if (node) return node.type === "directory" ? node.path : parentDir(node.path);
@@ -233,18 +286,28 @@ export default function FileExplorer({
     return "";
   }
 
-  async function handleCreateFile(node?: FileTreeNode) {
-    const name = prompt("File name");
-    if (!name) return;
-    const dir = resolveDir(node);
-    await onCreateFile(dir ? `${dir}/${name}` : name);
+  function handleCreateFile(node?: FileTreeNode) {
+    setRenaming(null);
+    createSettled.current = false;
+    setCreating({ dir: resolveDir(node), type: "file", value: "" });
   }
 
-  async function handleCreateFolder(node?: FileTreeNode) {
-    const name = prompt("Folder name");
+  function handleCreateFolder(node?: FileTreeNode) {
+    setRenaming(null);
+    createSettled.current = false;
+    setCreating({ dir: resolveDir(node), type: "directory", value: "" });
+  }
+
+  async function commitCreate() {
+    if (!creating || createSettled.current) return;
+    createSettled.current = true;
+    const { dir, type, value } = creating;
+    setCreating(null);
+    const name = value.trim();
     if (!name) return;
-    const dir = resolveDir(node);
-    await onCreateFolder(dir ? `${dir}/${name}` : name);
+    const path = dir ? `${dir}/${name}` : name;
+    if (type === "file") await onCreateFile(path);
+    else await onCreateFolder(path);
   }
 
   async function commitRename() {
@@ -273,6 +336,13 @@ export default function FileExplorer({
     setRenameValue: (value) => setRenaming((current) => (current ? { ...current, value } : current)),
     commitRename,
     cancelRename: () => setRenaming(null),
+    creating,
+    setCreateValue: (value) => setCreating((current) => (current ? { ...current, value } : current)),
+    commitCreate,
+    cancelCreate: () => {
+      createSettled.current = true;
+      setCreating(null);
+    },
     openContextMenu: (event, node) => {
       event.preventDefault();
       event.stopPropagation();
@@ -338,8 +408,9 @@ export default function FileExplorer({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto py-1">
-        {fileTree.length > 0 ? (
+        {fileTree.length > 0 || creating ? (
           <TreeContext.Provider value={treeActions}>
+            {creating?.dir === "" && <CreateRow level={0} />}
             {fileTree.map((node) => (
               <TreeNode key={node.path} node={node} level={0} />
             ))}
@@ -368,12 +439,12 @@ export default function FileExplorer({
           onNewFile={() => {
             const node = menu.node;
             setMenu(null);
-            void handleCreateFile(node);
+            handleCreateFile(node);
           }}
           onNewFolder={() => {
             const node = menu.node;
             setMenu(null);
-            void handleCreateFolder(node);
+            handleCreateFolder(node);
           }}
           onRename={() => {
             setRenaming({ path: menu.node.path, value: menu.node.name });

@@ -14,6 +14,7 @@ import {
   GitBranch,
   GitCommit,
   GitFork,
+  GitMerge,
   History,
   Loader2,
   Minus,
@@ -50,12 +51,34 @@ import {
   fetchRemote,
   pullRemote,
   pushRemote,
+  mergeBranch,
+  MergeBlockedError,
   type GitLogEntry,
 } from "@/lib/git";
 
 type GitStatusRow = [string, number, number, number];
 type Tone = "info" | "success" | "error";
-type MoreView = "root" | "delete-branch" | "remotes" | "tags";
+type MoreView = "root" | "merge-branch" | "delete-branch" | "remotes" | "tags";
+
+/** Turns git/network errors from fetch, pull and push into something actionable. */
+function remoteErrorMessage(action: string, error: unknown): string {
+  const code = (error as { code?: string })?.code;
+  const status = (error as { data?: { statusCode?: number } })?.data?.statusCode;
+
+  if (code === "MissingParameterError" || code === "NotFoundError") {
+    return `${action} failed: this project has no remote. Add one in ⋯ → Remotes (name "origin", your GitHub repo URL).`;
+  }
+  if (status === 401 || status === 403) {
+    return `${action} failed: GitHub refused access. Check that the CodeClik GitHub App can access this repository with read & write permission.`;
+  }
+  if (status === 404) {
+    return `${action} failed: repository not found. Check the remote URL, and that the CodeClik GitHub App has access to it.`;
+  }
+  if (code === "PushRejectedError") {
+    return `${action} failed: GitHub has commits you don't have yet. Pull first, then push again.`;
+  }
+  return `${action} failed.`;
+}
 
 type GitSourceControlProps = {
   onRefreshExplorer?: () => Promise<void>;
@@ -333,7 +356,7 @@ function handleClone() {
       await refreshGit();
     } catch (error) {
       console.error("Fetch error:", error);
-      notify("Fetch failed.", "error");
+      notify(remoteErrorMessage("Fetch", error), "error");
     } finally {
       setLoading(false);
     }
@@ -349,7 +372,7 @@ function handleClone() {
       await onRefreshExplorer?.();
     } catch (error) {
       console.error("Pull error:", error);
-      notify("Pull failed.", "error");
+      notify(remoteErrorMessage("Pull", error), "error");
     } finally {
       setLoading(false);
     }
@@ -363,7 +386,7 @@ function handleClone() {
       notify("Push completed.", "success");
     } catch (error) {
       console.error("Push error:", error);
-      notify("Push failed.", "error");
+      notify(remoteErrorMessage("Push", error), "error");
     } finally {
       setLoading(false);
     }
@@ -403,6 +426,29 @@ function handleClone() {
       notify(`Could not create branch "${name}".`, "error");
     } finally {
       setCreatingBranch(false);
+    }
+  }
+
+  async function handleMerge(branch: string) {
+    if (!confirm(`Merge "${branch}" into "${currentBranch}"?`)) return;
+
+    try {
+      setLoading(true);
+      closeMoreMenu();
+      const outcome = await mergeBranch(branch, { name: "Niket", email: "niket@example.com" });
+      await refreshGit();
+      await onRefreshExplorer?.();
+      notify(
+        outcome === "already-up-to-date"
+          ? `${currentBranch} already has everything from ${branch}.`
+          : `Merged ${branch} into ${currentBranch}. Push to publish it.`,
+        "success"
+      );
+    } catch (error) {
+      console.error("Merge error:", error);
+      notify(error instanceof MergeBlockedError ? error.message : `Could not merge ${branch}.`, "error");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -753,6 +799,17 @@ function handleClone() {
 
                       <button
                         type="button"
+                        onClick={() => openMoreView("merge-branch")}
+                        className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[#c9d1d9] transition hover:bg-[#1a1a1a]"
+                      >
+                        <span className="flex items-center gap-2">
+                          <GitMerge size={13} />
+                          Merge Branch
+                        </span>
+                        <ChevronRight size={13} className="text-[#6e7681]" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => openMoreView("delete-branch")}
                         className="flex w-full items-center justify-between px-3 py-1.5 text-left text-xs text-[#c9d1d9] transition hover:bg-[#1a1a1a]"
                       >
@@ -795,10 +852,33 @@ function handleClone() {
                         className="flex w-full items-center gap-1.5 border-b border-[#262626] px-3 py-2 text-left text-[11px] font-semibold text-[#c9d1d9] hover:bg-[#1a1a1a]"
                       >
                         <ChevronLeft size={13} />
+                        {moreView === "merge-branch" && `MERGE INTO ${currentBranch.toUpperCase()}`}
                         {moreView === "delete-branch" && "DELETE BRANCH"}
                         {moreView === "remotes" && "REMOTES"}
                         {moreView === "tags" && "TAGS"}
                       </button>
+
+                      {moreView === "merge-branch" && (
+                        <div className="max-h-48 overflow-auto py-1">
+                          {branches.filter((b) => b !== currentBranch).length === 0 ? (
+                            <div className="px-3 py-2 text-[11px] text-[#6e7681]">No other branches to merge</div>
+                          ) : (
+                            branches
+                              .filter((branch) => branch !== currentBranch)
+                              .map((branch) => (
+                                <button
+                                  key={branch}
+                                  type="button"
+                                  onClick={() => handleMerge(branch)}
+                                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#c9d1d9] hover:bg-[#1a1a1a]"
+                                >
+                                  <GitMerge size={13} className="shrink-0 text-[#8b949e]" />
+                                  <span className="min-w-0 flex-1 truncate">{branch}</span>
+                                </button>
+                              ))
+                          )}
+                        </div>
+                      )}
 
                       {moreView === "delete-branch" && (
                         <div className="max-h-48 overflow-auto py-1">
