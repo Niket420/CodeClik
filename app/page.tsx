@@ -1,9 +1,11 @@
 import {
   ArrowRight,
-  Braces,
+  Blocks,
   Check,
   Command,
   Files,
+  GitBranch,
+  Search,
   Sparkles,
   TerminalSquare,
 } from "lucide-react";
@@ -132,71 +134,134 @@ export default function HomePage() {
           style={{ animationDelay: "160ms" }}
         >
           <div className="absolute -inset-6 rounded-[2rem] bg-white/5 blur-3xl" />
+          {/* Mockup of the real editor: activity bar, explorer, code, terminal, AI agent, status bar. */}
           <div className="relative overflow-hidden rounded-xl border border-[#262626] bg-[#0a0a0a] shadow-2xl shadow-black/45 ring-1 ring-white/5">
-            <div className="flex h-10 items-center border-b border-[#262626] bg-[#121212] px-3">
+            <div className="flex h-9 items-center border-b border-[#262626] bg-[#121212] px-3">
               <div className="flex gap-1.5">
                 <span className="h-2.5 w-2.5 rounded-full bg-[#f14c4c]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#cca700]" />
                 <span className="h-2.5 w-2.5 rounded-full bg-[#3fb950]" />
               </div>
-              <div className="mx-auto rounded-md border border-[#262626] bg-[#000000] px-4 py-1 font-mono text-[10px] text-[#8b949e]">
-                portfolio.tsx — CodeClik
+              <div className="mx-auto rounded-md border border-[#262626] bg-[#000000] px-4 py-0.5 font-mono text-[10px] text-[#8b949e]">
+                restaurant-pos — CodeClik
               </div>
-              <Command size={14} className="text-[#8b949e]" />
+              <Command size={13} className="text-[#8b949e]" />
             </div>
 
-            <div className="grid min-h-[360px] grid-cols-[44px_140px_minmax(0,1fr)] sm:min-h-[420px] sm:grid-cols-[48px_170px_minmax(0,1fr)]">
-              <aside className="flex flex-col items-center gap-5 border-r border-[#262626] bg-[#0a0a0a] py-4 text-[#7f8791]">
-                <Files size={20} className="text-white" />
-                <span className="relative">
-                  <Braces size={19} />
-                  <span className="absolute -left-3 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-full bg-white" />
+            <div className="flex h-[400px] sm:h-[440px]">
+              {/* Activity bar */}
+              <aside className="flex w-10 shrink-0 flex-col items-center gap-4 border-r border-[#262626] bg-[#0a0a0a] py-3 text-[#7f8791]">
+                <span className="relative text-white">
+                  <Files size={17} />
+                  <span className="absolute -left-3 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-white" />
                 </span>
-                <TerminalSquare size={19} />
-                <Sparkles size={19} />
-              </aside>
-
-              <aside className="border-r border-[#262626] bg-[#0a0a0a] py-4 font-mono text-[10px] sm:text-xs">
-                <div className="mb-4 flex items-center justify-between px-3 text-[10px] font-semibold tracking-[0.13em] text-[#aeb8c2]">
-                  EXPLORER
-                  <span className="text-base font-normal text-[#7f8791]">···</span>
-                </div>
-                <div className="px-3 text-[#c9d1d9]">⌄ &nbsp; MY-PORTFOLIO</div>
-                <div className="mt-2 space-y-1 text-[#8b949e]">
-                  <div className="px-5">⌄ &nbsp; app</div>
-                  <div className="bg-[#1a1a1a] px-7 py-1 text-[#e6edf3]">⌘ &nbsp; page.tsx</div>
-                  <div className="px-7"># &nbsp; globals.css</div>
-                  <div className="px-5">⌄ &nbsp; components</div>
-                  <div className="px-7">⌘ &nbsp; hero.tsx</div>
-                  <div className="px-3 pt-2">◈ &nbsp; package.json</div>
-                </div>
-              </aside>
-
-              <div className="min-w-0 bg-[#000000] font-mono text-[10px] leading-6 sm:text-xs sm:leading-7">
-                <div className="flex h-9 items-end border-b border-[#262626] bg-[#0a0a0a] text-[#c9d1d9]">
-                  <span className="flex h-full items-center gap-2 border-t-2 border-white bg-[#000000] px-3">
-                    <span className="text-[#8b949e]">⌘</span>
-                    page.tsx
-                    <span className="hidden text-[#6e7681] sm:inline">×</span>
+                <Search size={17} />
+                <span className="relative">
+                  <GitBranch size={17} />
+                  <span className="absolute -right-2 -top-1.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-[#1f6feb] px-0.5 text-[8px] font-semibold text-white">
+                    3
                   </span>
+                </span>
+                <Blocks size={17} />
+              </aside>
+
+              {/* Explorer */}
+              <aside className="hidden w-[132px] shrink-0 border-r border-[#262626] bg-[#0a0a0a] py-3 font-mono text-[10px] sm:block">
+                <div className="mb-3 px-3 text-[9px] font-semibold tracking-[0.13em] text-[#aeb8c2]">EXPLORER</div>
+                <div className="space-y-1 text-[#8b949e]">
+                  <div className="px-3 text-[#c9d1d9]">⌄ RESTAURANT-POS</div>
+                  <div className="px-4">⌄ src</div>
+                  <div className="flex justify-between bg-[#1a1a1a] pl-6 pr-2 text-[#e6edf3]">
+                    App.jsx <span className="text-[#e3b341]">M</span>
+                  </div>
+                  <div className="flex justify-between pl-6 pr-2">
+                    store.jsx <span className="text-[#e3b341]">M</span>
+                  </div>
+                  <div className="pl-6">⌄ components</div>
+                  <div className="flex justify-between pl-8 pr-2">
+                    Menu.jsx <span className="text-[#3fb950]">U</span>
+                  </div>
+                  <div className="pl-8">Bill.jsx</div>
+                  <div className="px-4">index.html</div>
+                  <div className="px-4">package.json</div>
                 </div>
-                <div className="grid grid-cols-[28px_minmax(0,1fr)] px-2 py-4 text-[#c9d1d9] sm:grid-cols-[34px_minmax(0,1fr)]">
-                  <div className="select-none text-right text-[#484f58]">1<br />2<br />3<br />4<br />5<br />6<br />7<br />8</div>
-                  <div className="overflow-hidden pl-3 text-left">
-                    <div><span className="text-[#ff7b72]">export default function</span> <span className="text-[#d2a8ff]">Portfolio</span>()</div>
-                    <div className="text-[#c9d1d9]">&nbsp;&nbsp;<span className="text-[#ff7b72]">return</span> (</div>
-                    <div>&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;main</span> <span className="text-[#79c0ff]">className</span>=<span className="text-[#a5d6ff]">&quot;space-y-8&quot;</span><span className="text-[#7ee787]">&gt;</span></div>
-                    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;Hero</span> <span className="text-[#79c0ff]">title</span>=<span className="text-[#a5d6ff]">&quot;Hello, world&quot;</span> <span className="text-[#7ee787]">/&gt;</span></div>
-                    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;Projects</span> <span className="text-[#79c0ff]">featured</span> <span className="text-[#7ee787]">/&gt;</span></div>
+              </aside>
+
+              {/* Editor + terminal */}
+              <div className="flex min-w-0 flex-1 flex-col bg-[#000000] font-mono text-[10px]">
+                <div className="flex h-8 shrink-0 items-end border-b border-[#262626] bg-[#0a0a0a] text-[#c9d1d9]">
+                  <span className="flex h-full items-center gap-2 border-t-2 border-white bg-[#000000] px-3">
+                    App.jsx
+                    <span className="text-[#6e7681]">×</span>
+                  </span>
+                  <span className="flex h-full items-center px-3 text-[#6e7681]">store.jsx</span>
+                </div>
+
+                <div className="grid min-h-0 flex-1 grid-cols-[24px_minmax(0,1fr)] overflow-hidden px-2 py-3 leading-[18px] text-[#c9d1d9]">
+                  <div className="select-none text-right text-[#484f58]">
+                    1<br />2<br />3<br />4<br />5<br />6<br />7<br />8<br />9<br />10
+                  </div>
+                  <div className="overflow-hidden whitespace-nowrap pl-3">
+                    <div><span className="text-[#ff7b72]">import</span> {"{ useStore }"} <span className="text-[#ff7b72]">from</span> <span className="text-[#a5d6ff]">&quot;./store&quot;</span></div>
+                    <div>&nbsp;</div>
+                    <div><span className="text-[#ff7b72]">export default function</span> <span className="text-[#d2a8ff]">App</span>() {"{"}</div>
+                    <div>&nbsp;&nbsp;<span className="text-[#ff7b72]">const</span> {"{ items, total }"} = <span className="text-[#d2a8ff]">useStore</span>()</div>
+                    <div>&nbsp;&nbsp;<span className="text-[#ff7b72]">return</span> (</div>
+                    <div>&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;main</span> <span className="text-[#79c0ff]">className</span>=<span className="text-[#a5d6ff]">&quot;pos&quot;</span><span className="text-[#7ee787]">&gt;</span></div>
+                    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;Menu</span> <span className="text-[#79c0ff]">items</span>={"{items}"} <span className="text-[#7ee787]">/&gt;</span></div>
+                    <div>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;Bill</span> <span className="text-[#79c0ff]">total</span>={"{total}"} <span className="text-[#7ee787]">/&gt;</span></div>
                     <div>&nbsp;&nbsp;&nbsp;&nbsp;<span className="text-[#7ee787]">&lt;/main&gt;</span></div>
                     <div>&nbsp;&nbsp;)</div>
                   </div>
                 </div>
-                <div className="mt-auto flex items-center justify-between border-t border-[#262626] bg-[#0a0a0a] px-3 py-1.5 text-[9px] text-[#8b949e] sm:text-[10px]">
-                  <span>main*</span>
-                  <span>TypeScript React &nbsp; • &nbsp; UTF-8 &nbsp; • &nbsp; Ln 1, Col 1</span>
+
+                <div className="shrink-0 border-t border-[#262626] bg-[#0a0a0a] px-3 py-2 leading-[17px]">
+                  <div className="mb-1 flex items-center gap-1.5 text-[9px] font-semibold tracking-[0.1em] text-[#aeb8c2]">
+                    <TerminalSquare size={11} /> TERMINAL
+                  </div>
+                  <div className="text-[#c9d1d9]"><span className="text-[#6e7681]">❯</span> npm run dev</div>
+                  <div className="text-[#8b949e]">VITE ready in 812 ms</div>
+                  <div className="truncate text-[#3fb950]">➜ Local: http://localhost:5173/</div>
                 </div>
               </div>
+
+              {/* AI agent */}
+              <aside className="hidden w-[176px] shrink-0 flex-col border-l border-[#262626] bg-[#0a0a0a] md:flex">
+                <div className="flex h-8 shrink-0 items-center gap-1.5 border-b border-[#262626] px-3 text-[9px] font-semibold tracking-[0.12em] text-[#c9d1d9]">
+                  <Sparkles size={11} className="text-[#a371f7]" /> CODECLIK AI
+                </div>
+                <div className="flex-1 space-y-2.5 overflow-hidden p-2.5 text-[10px] leading-[15px]">
+                  <div className="rounded-md border border-[#262626] bg-[#121212] px-2 py-1.5 text-[#e6edf3]">
+                    Build a restaurant billing app
+                  </div>
+                  <div className="rounded-md border border-[#262626] bg-[#0d0d0d]">
+                    <div className="border-b border-[#1f1f1f] px-2 py-1 text-[#8b949e]">
+                      ▾ Worked for 42s <span className="text-[#6e7681]">· 4 steps</span>
+                    </div>
+                    <div className="space-y-0.5 px-2 py-1.5 font-mono text-[9px] text-[#8b949e]">
+                      {["Writing package.json", "Writing src/App.jsx", "Running npm install", "Starting dev server"].map((step) => (
+                        <div key={step} className="flex items-center gap-1.5 truncate">
+                          <Check size={9} className="shrink-0 text-[#3fb950]" />
+                          {step}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[#c9d1d9]">
+                    Your billing app is ready — menu, cart, tax and split bill. It&apos;s running in the preview.
+                  </p>
+                </div>
+                <div className="m-2.5 mt-0 rounded-md border border-[#262626] bg-[#000000] px-2 py-1.5 text-[10px] text-[#6e7681]">
+                  Ask CodeClik AI…
+                </div>
+              </aside>
+            </div>
+
+            <div className="flex h-6 items-center justify-between bg-[#f5f5f5] px-3 font-mono text-[9px] text-black">
+              <span className="flex items-center gap-1">
+                <GitBranch size={10} /> main · 3 changes
+              </span>
+              <span className="hidden sm:inline">JavaScript React · UTF-8 · Ln 4, Col 18</span>
             </div>
           </div>
         </div>
