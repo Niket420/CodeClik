@@ -52,6 +52,7 @@ import {
   pullRemote,
   pushRemote,
   mergeBranch,
+  startFreshHistory,
   MergeBlockedError,
   type GitLogEntry,
 } from "@/lib/git";
@@ -65,6 +66,9 @@ function remoteErrorMessage(action: string, error: unknown): string {
   const code = (error as { code?: string })?.code;
   // GitHub's own explanation, captured by pushRemote — the most precise reason.
   const remoteMessage = (error as { remoteMessage?: string })?.remoteMessage;
+  if (remoteMessage && /did not receive expected object|shallow update not allowed/i.test(remoteMessage)) {
+    return `${action} failed: this project's history is incomplete (it was cloned without full history), so it can't go to a different repository. Use ⋯ → Push as New Project.`;
+  }
   if (remoteMessage) {
     return `${action} failed. GitHub says: ${remoteMessage.slice(0, 300)}`;
   }
@@ -418,6 +422,34 @@ function handleClone() {
     } catch (error) {
       console.error("Force push error:", error);
       notify(remoteErrorMessage("Force push", error), "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handlePushAsNewProject() {
+    closeMoreMenu();
+    const branch = currentBranch || "this branch";
+    if (
+      !confirm(
+        `Push as a new project?\n\nYour current files become one new first commit on "${branch}" (the old history is dropped here), then replace "${branch}" on GitHub. Any commits on GitHub's "${branch}" will be permanently deleted.\n\nUse this to push cloned code to your own repository.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      await startFreshHistory(commitMessage.trim() || "Initial commit", { name: "Niket", email: "niket@example.com" });
+      setCommitMessage("");
+      const token = await fetchGithubToken();
+      await pushRemote("origin", undefined, token, true);
+      await refreshGit();
+      notify("Pushed as a new project.", "success");
+    } catch (error) {
+      console.error("Push as new project error:", error);
+      notify(remoteErrorMessage("Push as new project", error), "error");
+      await refreshGit();
     } finally {
       setLoading(false);
     }
@@ -842,6 +874,16 @@ function handleClone() {
                       >
                         <ArrowUp size={13} />
                         Force Push
+                      </button>
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handlePushAsNewProject}
+                        title="Push your current files as a fresh project with no previous history"
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#f85149] transition hover:bg-[#1a1a1a] disabled:opacity-40"
+                      >
+                        <Upload size={13} />
+                        Push as New Project
                       </button>
                       <div className="my-1 h-px bg-[#262626]" />
                       <button

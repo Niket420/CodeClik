@@ -377,12 +377,13 @@ export async function cloneRepository(
       })
     : undefined;
 
-  // A full clone (every branch, full history) means isomorphic-git — a pure-JS
-  // git implementation running inside a WebContainer — has to download the
-  // entire object database. For an active repo that's a lot of data with the
-  // UI showing nothing but a spinner, which just looks hung. Default to a
-  // shallow, single-branch clone (what most browser-based IDEs do) so cloning
-  // stays fast; other branches can still be fetched/checked out afterwards.
+  // Shallow, single-branch clone (latest commit only). Full history means
+  // isomorphic-git — pure JS in the browser — downloads and indexes every
+  // commit, which for an active repo takes minutes and trips the stall
+  // watchdog before any files appear. Trade-off: a shallow project can't be
+  // pushed to a *different* repository as-is (its oldest commit points at
+  // parents that were never downloaded) — "Push as New Project"
+  // (startFreshHistory) handles that.
   //
   // corsProxy points at our own /api/git-proxy route rather than the public
   // https://cors.isomorphic-git.org demo proxy: that's a free, shared,
@@ -457,6 +458,45 @@ export async function createTag(tag: string) {
 /* -------------------------------------------------------------------------- */
 /* Current branch                                                             */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * Replaces the current branch's history with one new root commit holding the
+ * current files — "take this code, start fresh". Needed to push a project to
+ * a different repository when its history is incomplete (cloned shallow) or
+ * unrelated to that repository. Afterwards normal commits and pushes work.
+ */
+export async function startFreshHistory(
+  message: string,
+  author: { name: string; email: string }
+) {
+  await getWebContainer();
+
+  const branch = await getCurrentBranch();
+  if (!branch) {
+    throw new Error("Switch to a branch first.");
+  }
+
+  // Stage every file as it is on disk, including deletions.
+  const matrix = await getGitStatus();
+  for (const [filepath, , workdir] of matrix) {
+    if (workdir === 0) {
+      await git.remove({ fs: gitFs, dir: ".", filepath });
+    } else {
+      await git.add({ fs: gitFs, dir: ".", filepath });
+    }
+  }
+
+  // parent: [] makes it a root commit. The ref must be the full name — a bare
+  // "main" writes a stray .git/main file instead of moving the branch.
+  return await git.commit({
+    fs: gitFs,
+    dir: ".",
+    message,
+    author,
+    parent: [],
+    ref: `refs/heads/${branch}`,
+  });
+}
 
 export type MergeOutcome = "merged" | "fast-forward" | "already-up-to-date";
 
