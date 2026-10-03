@@ -41,6 +41,9 @@ const OPENAI_COMPATIBLE_PROVIDERS = new Set([
 
 const OLLAMA_PROVIDERS = new Set(["ollama", "local"]);
 
+// Big enough for an agent writing a large file in one reply.
+const OPENROUTER_MAX_REPLY_TOKENS = 16_000;
+
 const OPENAI_COMPATIBLE_DEFAULT_ENDPOINTS: Record<string, string> = {
   xai: "https://api.x.ai/v1",
   groq: "https://api.groq.com/openai/v1",
@@ -496,6 +499,12 @@ export async function POST(request: Request) {
             // below use structurally different tool-call formats this route
             // doesn't translate yet, so tools are intentionally not forwarded there.
             ...(tools && tools.length > 0 ? { tools } : {}),
+            // Without a cap, OpenRouter reserves credit for the model's maximum
+            // reply (often 128k tokens) before answering, and refuses with a
+            // 402 when the balance can't cover that worst case — even though
+            // real replies are a few thousand tokens. OpenRouter only: some
+            // providers (e.g. newer OpenAI models) reject max_tokens.
+            ...(provider === "openrouter" ? { max_tokens: OPENROUTER_MAX_REPLY_TOKENS } : {}),
           }),
         },
       );
@@ -528,9 +537,11 @@ export async function POST(request: Request) {
       const providerError =
         providerResponse.status === 401 || providerResponse.status === 403
           ? "The API key is invalid or expired. Please reconfigure this provider with a fresh key."
-          : providerResponse.status === 429
-            ? "The provider rate limit was hit. Please wait and try again."
-            : "AI provider request failed.";
+          : providerResponse.status === 402
+            ? "Your AI provider account is out of credits. Add credits on the provider's website, or switch to another provider or a free model."
+            : providerResponse.status === 429
+              ? "The provider rate limit was hit. Please wait and try again."
+              : "AI provider request failed.";
 
       return NextResponse.json(
         // The upstream status code isn't returned: for a user-supplied

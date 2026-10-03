@@ -63,6 +63,11 @@ type MoreView = "root" | "merge-branch" | "delete-branch" | "remotes" | "tags";
 /** Turns git/network errors from fetch, pull and push into something actionable. */
 function remoteErrorMessage(action: string, error: unknown): string {
   const code = (error as { code?: string })?.code;
+  // GitHub's own explanation, captured by pushRemote — the most precise reason.
+  const remoteMessage = (error as { remoteMessage?: string })?.remoteMessage;
+  if (remoteMessage) {
+    return `${action} failed. GitHub says: ${remoteMessage.slice(0, 300)}`;
+  }
   const status = (error as { data?: { statusCode?: number } })?.data?.statusCode;
 
   if (code === "MissingParameterError" || code === "NotFoundError") {
@@ -74,8 +79,8 @@ function remoteErrorMessage(action: string, error: unknown): string {
   if (status === 404) {
     return `${action} failed: repository not found. Check the remote URL, and that the CodeClik GitHub App has access to it.`;
   }
-  if (code === "PushRejectedError") {
-    return `${action} failed: GitHub has commits you don't have yet. Pull first, then push again.`;
+  if (code === "PushRejectedError" || code === "GitPushError") {
+    return `${action} failed: the GitHub repository has commits this project doesn't have. Pull first, push to a new branch, or use ⋯ → Force Push to overwrite GitHub's version.`;
   }
   return `${action} failed.`;
 }
@@ -83,6 +88,8 @@ function remoteErrorMessage(action: string, error: unknown): string {
 type GitSourceControlProps = {
   onRefreshExplorer?: () => Promise<void>;
   onOpenDiff?: (entry: GitLogEntry, filepath: string) => void;
+  /** Number of files with changes (staged, unstaged or new) — for the activity-bar badge. */
+  onChangeCount?: (count: number) => void;
 };
 
 
@@ -127,7 +134,7 @@ function relativeTime(unixSeconds: number) {
   return `${Math.floor(months / 12)}y ago`;
 }
 
-export default function GitSourceControl({ onRefreshExplorer, onOpenDiff }: GitSourceControlProps) {
+export default function GitSourceControl({ onRefreshExplorer, onOpenDiff, onChangeCount }: GitSourceControlProps) {
   const [initialized, setInitialized] = useState<boolean | null>(null);
   const [status, setStatus] = useState<GitStatusRow[]>([]);
   const [history, setHistory] = useState<GitLogEntry[]>([]);
@@ -366,7 +373,7 @@ function handleClone() {
     try {
       setLoading(true);
       const token = await fetchGithubToken();
-      await pullRemote("origin", undefined, token);
+      await pullRemote("origin", undefined, token, { name: "Niket", email: "niket@example.com" });
       notify("Pull completed.", "success");
       await refreshGit();
       await onRefreshExplorer?.();
@@ -387,6 +394,30 @@ function handleClone() {
     } catch (error) {
       console.error("Push error:", error);
       notify(remoteErrorMessage("Push", error), "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleForcePush() {
+    closeMoreMenu();
+    const branch = currentBranch || "this branch";
+    if (
+      !confirm(
+        `Force push "${branch}"?\n\nThis replaces "${branch}" on GitHub with your local version. Any commits on GitHub that aren't in this project will be permanently deleted.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const token = await fetchGithubToken();
+      await pushRemote("origin", undefined, token, true);
+      notify("Force push completed.", "success");
+    } catch (error) {
+      console.error("Force push error:", error);
+      notify(remoteErrorMessage("Force push", error), "error");
     } finally {
       setLoading(false);
     }
@@ -542,6 +573,12 @@ function handleClone() {
   // it's staged once STAGE no longer matches HEAD.
   const changedFiles = status.filter(([, head, workdir, stage]) => workdir !== head && stage === head);
   const stagedFiles = status.filter(([, head, , stage]) => stage !== head);
+  // Every file that differs anywhere from the last commit (1/1/1 = unchanged).
+  const changeCount = status.filter(([, head, workdir, stage]) => !(head === 1 && workdir === 1 && stage === 1)).length;
+
+  useEffect(() => {
+    onChangeCount?.(changeCount);
+  }, [changeCount, onChangeCount]);
 
   return (
     <aside className="flex h-full min-w-0 flex-col bg-[#0a0a0a] text-[#c9d1d9]">
@@ -797,6 +834,16 @@ function handleClone() {
 
                       <div className="my-1 h-px bg-[#262626]" />
 
+                      <button
+                        type="button"
+                        disabled={loading}
+                        onClick={handleForcePush}
+                        className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-[#f85149] transition hover:bg-[#1a1a1a] disabled:opacity-40"
+                      >
+                        <ArrowUp size={13} />
+                        Force Push
+                      </button>
+                      <div className="my-1 h-px bg-[#262626]" />
                       <button
                         type="button"
                         onClick={() => openMoreView("merge-branch")}

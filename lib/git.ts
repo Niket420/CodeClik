@@ -283,7 +283,10 @@ export async function fetchRemote(
 export async function pullRemote(
   remote = "origin",
   ref?: string,
-  token?: string
+  token?: string,
+  // Needed when the pull has to create a merge commit; without it isomorphic-git
+  // fails with MissingNameError (nothing is configured in .git/config).
+  author?: { name: string; email: string }
 ) {
   await getWebContainer();
 
@@ -298,6 +301,7 @@ export async function pullRemote(
     corsProxy: GIT_CORS_PROXY,
     ref,
     singleBranch: true,
+    author,
     onAuth: token
       ? () => ({ username: "x-access-token", password: token })
       : undefined,
@@ -311,24 +315,43 @@ export async function pullRemote(
 export async function pushRemote(
   remote = "origin",
   ref?: string,
-  token?: string
+  token?: string,
+  // Overwrite the remote branch even when it has commits this repo doesn't
+  // (git push --force). Those remote commits are lost.
+  force = false
 ) {
   await getWebContainer();
 
-  return await git.push({
-    fs: gitFs,
-    http,
-    dir: ".",
-    remote,
-    // Browsers can't call github.com directly (CORS), so go through our proxy.
-    // Repos cloned here already have this saved in their git config, but
-    // repos created here with a remote added by hand don't.
-    corsProxy: GIT_CORS_PROXY,
-    ref,
-    onAuth: token
-      ? () => ({ username: "x-access-token", password: token })
-      : undefined,
-  });
+  // GitHub explains rejections (e.g. "shallow update not allowed", missing
+  // permissions) as "remote:" progress messages, while the error itself only
+  // says "failed". Collect them so the UI can show the real reason.
+  const remoteMessages: string[] = [];
+
+  try {
+    return await git.push({
+      fs: gitFs,
+      http,
+      dir: ".",
+      remote,
+      force,
+      // Browsers can't call github.com directly (CORS), so go through our proxy.
+      // Repos cloned here already have this saved in their git config, but
+      // repos created here with a remote added by hand don't.
+      corsProxy: GIT_CORS_PROXY,
+      ref,
+      onMessage: (message) => {
+        remoteMessages.push(message);
+      },
+      onAuth: token
+        ? () => ({ username: "x-access-token", password: token })
+        : undefined,
+    });
+  } catch (error) {
+    if (error && typeof error === "object" && remoteMessages.length > 0) {
+      (error as { remoteMessage?: string }).remoteMessage = remoteMessages.join("").trim();
+    }
+    throw error;
+  }
 }
 
 /* -------------------------------------------------------------------------- */

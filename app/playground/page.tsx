@@ -55,6 +55,8 @@ export default function PlaygroundPage() {
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  // Changed-file count from Source Control, shown as a badge like VS Code.
+  const [gitChangeCount, setGitChangeCount] = useState(0);
   const [selectedPath, setSelectedPath] = useState("");
   const [selectedType, setSelectedType] = useState<"file" | "directory" | "">(
     "",
@@ -267,6 +269,14 @@ export default function PlaygroundPage() {
                       <span className="absolute left-0 h-6 w-0.5 rounded-r-full bg-white" />
                     )}
                     <Icon size={20} strokeWidth={1.8} />
+                    {id === "source-control" && gitChangeCount > 0 && (
+                      <span
+                        aria-label={`${gitChangeCount} changed files`}
+                        className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#1f6feb] px-1 text-[9.5px] font-semibold leading-none text-white"
+                      >
+                        {gitChangeCount > 99 ? "99+" : gitChangeCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -302,6 +312,7 @@ export default function PlaygroundPage() {
                           await refreshFileTree(webcontainer);
                         }}
                         onOpenDiff={openDiff}
+                        onChangeCount={setGitChangeCount}
                       />
                     </div>
 
