@@ -216,12 +216,6 @@ export default function AIAssistant({
     resolve?.(approved);
   }
 
-  function handleNewConversation() {
-    clearMessages();
-    setContextMode("current-file");
-    setMoreMenuOpen(false);
-  }
-
   function handleDisconnect() {
     clearMessages();
     setConfig(null);
@@ -501,37 +495,106 @@ async function handleSend() {
 
   return (
     <aside className="flex h-full min-w-0 flex-col bg-[#0a0a0a] text-[#c9d1d9]">
-      <div className="flex h-10 shrink-0 items-center justify-between border-b border-[#262626] px-3">
-        <span className="flex items-center gap-2 text-[11px] font-semibold tracking-[0.12em]">
-          <Sparkles size={13} className="text-[#a371f7]" />
-          CODECLIK AI
-        </span>
+      <div className="relative flex h-10 shrink-0 items-center justify-between gap-2 border-b border-[#262626] px-2">
+        {config && !pendingProviderId && !pickerOpen ? (
+          <>
+            <button
+              type="button"
+              onClick={() => setSwitcherOpen((open) => !open)}
+              className="flex min-w-0 items-center gap-1.5 rounded px-1.5 py-1 text-xs transition hover:bg-[#1a1a1a]"
+            >
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3fb950]" />
+              {currentProvider && <currentProvider.icon size={13} className="shrink-0 text-[#e6edf3]" />}
+              <span className="truncate font-medium text-[#e6edf3]">{currentProvider?.name}</span>
+              <span className="truncate text-[#6e7681]">· {config.model}</span>
+              <ChevronDown size={12} className="shrink-0 text-[#6e7681]" />
+            </button>
+
+            {switcherOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
+                <div className="cf-dropdown absolute left-2 top-full z-50 mt-1 w-72 overflow-hidden rounded-md border border-[#262626] bg-[#121212] shadow-xl shadow-black/40">
+                  <div className="max-h-64 overflow-auto py-1">
+                    {savedConnections.map((connection) => {
+                      const provider = AI_PROVIDERS.find((p) => p.id === connection.providerId);
+                      if (!provider) return null;
+
+                      const isActive =
+                        config.providerId === connection.providerId && config.model === connection.model;
+
+                      return (
+                        <button
+                          key={connection.providerId}
+                          type="button"
+                          onClick={() => {
+                            setConfig(connection);
+                            setSwitcherOpen(false);
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-[#1a1a1a]"
+                        >
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${isActive ? "bg-[#3fb950]" : "bg-transparent"}`}
+                          />
+                          <provider.icon size={13} className="shrink-0 text-[#e6edf3]" />
+                          <span className={isActive ? "font-medium text-[#e6edf3]" : "text-[#c9d1d9]"}>
+                            {provider.name}
+                          </span>
+                          <span className="ml-auto min-w-0 truncate text-[#6e7681]">{connection.model}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="my-1 h-px bg-[#262626]" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSwitcherOpen(false);
+                      setPickerOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-white transition hover:bg-[#1a1a1a]"
+                  >
+                    <Plus size={13} />
+                    Configure provider
+                  </button>
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <span />
+        )}
 
         {config && !pendingProviderId && !pickerOpen && (
-          <div className="flex items-center gap-0.5 text-[#8b949e]">
+          <div className="flex shrink-0 items-center gap-0.5 text-[#8b949e]">
+            {/* Agent / Chat mode: the selected one is a white box with a black border. */}
             <button
               type="button"
               title={
                 agentCapable
-                  ? agentMode
-                    ? "Agent mode on — can edit files and run commands"
-                    : "Turn on Agent mode (can edit files and run commands)"
+                  ? "Agent mode — can edit files and run commands"
                   : "Agent mode isn't available for this provider yet"
               }
               aria-pressed={agentMode}
               disabled={!agentCapable}
-              onClick={() => setAgentMode((mode) => !mode)}
-              className={`grid h-6 w-6 place-items-center rounded transition disabled:cursor-not-allowed disabled:opacity-30 ${
-                agentMode ? "bg-[#1a1a1a] text-[#e6edf3]" : "hover:bg-[#262626] hover:text-white"
+              onClick={() => setAgentMode(true)}
+              className={`grid h-6 w-6 place-items-center rounded border transition disabled:cursor-not-allowed disabled:opacity-30 ${
+                agentMode
+                  ? "border-black bg-white text-black"
+                  : "border-transparent hover:bg-[#262626] hover:text-white"
               }`}
             >
               <Bot size={14} />
             </button>
             <button
               type="button"
-              title="New conversation"
-              onClick={handleNewConversation}
-              className="grid h-6 w-6 place-items-center rounded transition hover:bg-[#262626] hover:text-white"
+              title="Chat mode — answers questions, doesn't change files"
+              aria-pressed={!agentMode}
+              onClick={() => setAgentMode(false)}
+              className={`grid h-6 w-6 place-items-center rounded border transition ${
+                !agentMode
+                  ? "border-black bg-white text-black"
+                  : "border-transparent hover:bg-[#262626] hover:text-white"
+              }`}
             >
               <MessageSquarePlus size={14} />
             </button>
@@ -634,70 +697,6 @@ async function handleSend() {
         </div>
       ) : (
         <>
-          <div className="relative flex h-9 shrink-0 items-center border-b border-[#262626] px-2">
-            <button
-              type="button"
-              onClick={() => setSwitcherOpen((open) => !open)}
-              className="flex min-w-0 items-center gap-1.5 rounded px-1.5 py-1 text-xs transition hover:bg-[#1a1a1a]"
-            >
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#3fb950]" />
-              {currentProvider && <currentProvider.icon size={13} className="shrink-0 text-[#e6edf3]" />}
-              <span className="truncate font-medium text-[#e6edf3]">{currentProvider?.name}</span>
-              <span className="truncate text-[#6e7681]">· {config.model}</span>
-              <ChevronDown size={12} className="shrink-0 text-[#6e7681]" />
-            </button>
-
-            {switcherOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setSwitcherOpen(false)} />
-                <div className="cf-dropdown absolute left-2 top-full z-50 mt-1 w-72 overflow-hidden rounded-md border border-[#262626] bg-[#121212] shadow-xl shadow-black/40">
-                  <div className="max-h-64 overflow-auto py-1">
-                    {savedConnections.map((connection) => {
-                      const provider = AI_PROVIDERS.find((p) => p.id === connection.providerId);
-                      if (!provider) return null;
-
-                      const isActive =
-                        config.providerId === connection.providerId && config.model === connection.model;
-
-                      return (
-                        <button
-                          key={connection.providerId}
-                          type="button"
-                          onClick={() => {
-                            setConfig(connection);
-                            setSwitcherOpen(false);
-                          }}
-                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs transition hover:bg-[#1a1a1a]"
-                        >
-                          <span
-                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${isActive ? "bg-[#3fb950]" : "bg-transparent"}`}
-                          />
-                          <provider.icon size={13} className="shrink-0 text-[#e6edf3]" />
-                          <span className={isActive ? "font-medium text-[#e6edf3]" : "text-[#c9d1d9]"}>
-                            {provider.name}
-                          </span>
-                          <span className="ml-auto min-w-0 truncate text-[#6e7681]">{connection.model}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <div className="my-1 h-px bg-[#262626]" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSwitcherOpen(false);
-                      setPickerOpen(true);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-white transition hover:bg-[#1a1a1a]"
-                  >
-                    <Plus size={13} />
-                    Configure provider
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-
           <AIChat
             messages={messages}
             isGenerating={isGenerating}

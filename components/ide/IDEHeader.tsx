@@ -197,7 +197,7 @@ export default function IDEHeader({
               : "text-[#8b949e] hover:bg-[#1a1a1a] hover:text-white"
           }`}
         >
-          <Sparkles size={13} className={aiOpen ? "text-[#a371f7]" : ""} />
+          <BrandMark size={16} className="shadow-none" />
           <span className="hidden sm:inline">AI</span>
         </button>
 

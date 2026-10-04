@@ -194,6 +194,111 @@ function ollamaStreamToOpenAI(body: ReadableStream<Uint8Array>): ReadableStream<
   });
 }
 
+// Some models (e.g. gpt-oss on Bedrock, DeepSeek-R1) put their chain of thought
+// inline in the reply as a leading <reasoning>…</reasoning> or <think>…</think>
+// block. Drop that block so only the answer reaches the user. Only a block at
+// the very start of the reply is stripped, so tags inside real answers (code,
+// explanations) are left alone. Tags can be split across chunks, so content
+// is buffered until it's clear whether a block is starting or ending.
+const REASONING_TAGS = [
+  { open: "<reasoning>", close: "</reasoning>" },
+  { open: "<think>", close: "</think>" },
+];
+
+function stripLeadingReasoning(body: ReadableStream<Uint8Array>): ReadableStream<Uint8Array> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = "";
+  // "start": haven't seen any answer text yet; "inside": in a reasoning block;
+  // "pass": forward everything as-is.
+  let state: "start" | "inside" | "pass" = "start";
+  let pending = "";
+  let closeTag = "";
+
+  const filter = (content: string): string => {
+    if (state === "pass") return content;
+    pending += content;
+
+    while (true) {
+      if (state === "start") {
+        const trimmed = pending.trimStart();
+        if (!trimmed) return "";
+        const tag = REASONING_TAGS.find((t) => trimmed.startsWith(t.open));
+        if (tag) {
+          state = "inside";
+          closeTag = tag.close;
+          pending = trimmed.slice(tag.open.length);
+          continue;
+        }
+        // Might still be the beginning of an opening tag — wait for more.
+        if (REASONING_TAGS.some((t) => t.open.startsWith(trimmed))) return "";
+        state = "pass";
+        pending = "";
+        return trimmed;
+      }
+
+      if (state === "inside") {
+        const end = pending.indexOf(closeTag);
+        if (end === -1) {
+          // Keep just enough to catch a closing tag split across chunks.
+          pending = pending.slice(-(closeTag.length - 1));
+          return "";
+        }
+        pending = pending.slice(end + closeTag.length);
+        // Back to "start" so whitespace between the block and the answer is dropped.
+        state = "start";
+        continue;
+      }
+
+      return "";
+    }
+  };
+
+  const rewrite = (line: string): string => {
+    if (!line.startsWith("data: ")) return line;
+    const data = line.slice(6).trim();
+
+    if (data === "[DONE]") {
+      // Flush text that was held back only because it looked like a partial tag.
+      const leftover = state === "start" ? pending : "";
+      pending = "";
+      return leftover ? `${encoderChunk(leftover)}${line}` : line;
+    }
+
+    try {
+      const event = JSON.parse(data);
+      const delta = event?.choices?.[0]?.delta;
+      if (!delta || typeof delta.content !== "string") return line;
+      delta.content = filter(delta.content);
+      return `data: ${JSON.stringify(event)}`;
+    } catch {
+      return line;
+    }
+  };
+
+  return new ReadableStream({
+    async pull(controller) {
+      const { value, done } = await reader.read();
+
+      if (done) {
+        if (buffer) controller.enqueue(encoder.encode(rewrite(buffer)));
+        controller.close();
+        return;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      controller.enqueue(encoder.encode(lines.map((line) => `${rewrite(line)}\n`).join("")));
+    },
+    cancel() {
+      reader.cancel();
+    },
+  });
+}
+
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 60_000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -469,7 +574,7 @@ export async function POST(request: Request) {
         },
       );
 
-      toOpenAIStream = ollamaStreamToOpenAI;
+      toOpenAIStream = (body) => stripLeadingReasoning(ollamaStreamToOpenAI(body));
     } else if (OPENAI_COMPATIBLE_PROVIDERS.has(provider)) {
       // 6. Use the user's custom endpoint if provided, otherwise the provider's default.
       const endpoint = connection.endpoint?.trim() || OPENAI_COMPATIBLE_DEFAULT_ENDPOINTS[provider];
@@ -511,6 +616,8 @@ export async function POST(request: Request) {
           }),
         },
       );
+
+      toOpenAIStream = stripLeadingReasoning;
     } else if (provider === "anthropic") {
       providerResponse = await callAnthropic(apiKey, selectedModel, messages);
       toOpenAIStream = anthropicStreamToOpenAI;
