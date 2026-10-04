@@ -579,17 +579,27 @@ function handleClone() {
     }
   }
 
+  // The first remote is named "origin" automatically (git's standard name for
+  // "where this project lives"), so new users only paste a link. A name is
+  // asked for only when adding a second one.
+  const hasOrigin = remotes.some((remote) => remote.remote === "origin");
+
   async function handleAddRemote() {
-    const name = newRemoteName.trim();
-    const url = newRemoteUrl.trim();
+    const name = newRemoteName.trim() || (hasOrigin ? "" : "origin");
+    let url = newRemoteUrl.trim();
     if (!name || !url) return;
+
+    // Accept links pasted without the scheme, e.g. "github.com/user/repo".
+    if (!/^[a-z]+:\/\//i.test(url) && !url.startsWith("git@")) {
+      url = `https://${url}`;
+    }
 
     try {
       await addRemote(name, url);
       setNewRemoteName("");
       setNewRemoteUrl("");
       await loadRemotes();
-      notify(`Added remote "${name}".`, "success");
+      notify(name === "origin" ? "Connected to the repository." : `Added remote "${name}".`, "success");
     } catch (error) {
       console.error("Add remote error:", error);
       notify(`Could not add remote "${name}".`, "error");
@@ -1043,7 +1053,9 @@ function handleClone() {
                         <>
                           <div className="max-h-40 overflow-auto py-1">
                             {remotes.length === 0 ? (
-                              <div className="px-3 py-2 text-[11px] text-[#6e7681]">No remotes configured</div>
+                              <div className="px-3 py-2 text-[11px] leading-4 text-[#6e7681]">
+                                Not connected yet. Paste your GitHub repository link below — that&apos;s where Push sends your code.
+                              </div>
                             ) : (
                               remotes.map((remote) => (
                                 <div
@@ -1051,7 +1063,12 @@ function handleClone() {
                                   className="group flex items-center gap-2 px-3 py-1.5 hover:bg-[#1a1a1a]"
                                 >
                                   <div className="min-w-0 flex-1">
-                                    <p className="truncate text-xs text-[#e6edf3]">{remote.remote}</p>
+                                    <p className="truncate text-xs text-[#e6edf3]">
+                                      {remote.remote}
+                                      {remote.remote === "origin" && (
+                                        <span className="ml-1.5 text-[10px] text-[#6e7681]">default</span>
+                                      )}
+                                    </p>
                                     <p className="truncate text-[10px] text-[#6e7681]">{remote.url}</p>
                                   </div>
                                   <button
@@ -1067,12 +1084,14 @@ function handleClone() {
                             )}
                           </div>
                           <div className="flex flex-col gap-1.5 border-t border-[#262626] p-2">
-                            <input
-                              value={newRemoteName}
-                              onChange={(event) => setNewRemoteName(event.target.value)}
-                              placeholder="Name (e.g. origin)"
-                              className="h-7 rounded border border-[#262626] bg-[#000000] px-2 text-xs text-[#e6edf3] outline-none placeholder:text-[#6e7681] focus:border-[#525252]"
-                            />
+                            {hasOrigin && (
+                              <input
+                                value={newRemoteName}
+                                onChange={(event) => setNewRemoteName(event.target.value)}
+                                placeholder="Name for this link (e.g. upstream)"
+                                className="h-7 rounded border border-[#262626] bg-[#000000] px-2 text-xs text-[#e6edf3] outline-none placeholder:text-[#6e7681] focus:border-[#525252]"
+                              />
+                            )}
                             <div className="flex items-center gap-1.5">
                               <input
                                 value={newRemoteUrl}
@@ -1080,13 +1099,13 @@ function handleClone() {
                                 onKeyDown={(event) => {
                                   if (event.key === "Enter") handleAddRemote();
                                 }}
-                                placeholder="Repository URL"
+                                placeholder="https://github.com/you/your-repo"
                                 className="h-7 min-w-0 flex-1 rounded border border-[#262626] bg-[#000000] px-2 text-xs text-[#e6edf3] outline-none placeholder:text-[#6e7681] focus:border-[#525252]"
                               />
                               <button
                                 type="button"
-                                title="Add remote"
-                                disabled={!newRemoteName.trim() || !newRemoteUrl.trim()}
+                                title={hasOrigin ? "Add remote" : "Connect repository"}
+                                disabled={!newRemoteUrl.trim() || (hasOrigin && !newRemoteName.trim())}
                                 onClick={handleAddRemote}
                                 className="grid h-7 w-7 shrink-0 place-items-center rounded bg-white text-black transition hover:bg-[#d4d4d4] disabled:opacity-40"
                               >
