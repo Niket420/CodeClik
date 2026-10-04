@@ -19,7 +19,8 @@ import { readDirectory } from "@/lib/filesystem";
 import { FileTreeNode } from "@/types/file-tree";
 import IDEHeader from "@/components/ide/IDEHeader";
 import FileExplorer from "@/components/ide/FileExplorer";
-import Editor, { type DiffTab } from "@/components/ide/Editor";
+import Editor, { type DiffTab, type RevealTarget } from "@/components/ide/Editor";
+import SearchPanel from "@/components/ide/SearchPanel";
 import Preview from "@/components/ide/Preview";
 import IDETerminal from "@/components/ide/Terminal";
 import GitSourceControl from "@/components/ide/GitSourceControl";
@@ -62,6 +63,8 @@ export default function PlaygroundPage() {
     "",
   );
   const [selectedCode, setSelectedCode] = useState("");
+  const [revealTarget, setRevealTarget] = useState<RevealTarget | null>(null);
+  const [searchFocusToken, setSearchFocusToken] = useState(0);
 
   async function refreshFileTree(wc: WebContainer) {
     const tree = await readDirectory(wc, ".");
@@ -139,6 +142,11 @@ export default function PlaygroundPage() {
       { path, content, isDirty: false },
     ]);
     setActiveFilePath(path);
+  }
+
+  async function openFileAt(path: string, line: number, column: number, length: number) {
+    await openFile(path);
+    setRevealTarget({ path, line, column, length, token: Date.now() });
   }
 
   async function openDiff(entry: GitLogEntry, filepath: string) {
@@ -234,7 +242,22 @@ export default function PlaygroundPage() {
 
     setActiveActivity(id);
     setSidebarOpen(true);
+    if (id === "search") setSearchFocusToken((token) => token + 1);
   }
+
+  // ⌘⇧F / Ctrl+Shift+F opens Search, like VS Code.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.key.toLowerCase() !== "f") return;
+      event.preventDefault();
+      setActiveActivity("search");
+      setSidebarOpen(true);
+      setSearchFocusToken((token) => token + 1);
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -373,6 +396,28 @@ export default function PlaygroundPage() {
 
                     <div
                       className={`absolute inset-0 ${
+                        activeActivity === "search" ? "block" : "hidden"
+                      }`}
+                    >
+                      <SearchPanel
+                        webcontainer={webcontainer}
+                        fileTree={fileTree}
+                        openedFiles={openedFiles}
+                        focusToken={searchFocusToken}
+                        onOpenMatch={openFileAt}
+                        onUpdateOpenFile={(path, content) =>
+                          setOpenedFiles((previousFiles) =>
+                            previousFiles.map((file) =>
+                              file.path === path ? { ...file, content, isDirty: true } : file,
+                            ),
+                          )
+                        }
+                        onFilesWritten={() => refreshFileTree(webcontainer)}
+                      />
+                    </div>
+
+                    <div
+                      className={`absolute inset-0 ${
                         activeActivity === "explorer" ? "block" : "hidden"
                       }`}
                     >
@@ -412,6 +457,7 @@ export default function PlaygroundPage() {
                     activeDiffId={activeDiffId}
                     setActiveDiffId={setActiveDiffId}
                     onSelectionChange={setSelectedCode}
+                    revealTarget={revealTarget}
                   />
                 </Panel>
 

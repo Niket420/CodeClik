@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MonacoEditor, { DiffEditor, type OnMount } from "@monaco-editor/react";
 import { FileCode2, GitCompare, X } from "lucide-react";
 import { WebContainer } from "@webcontainer/api";
@@ -31,6 +31,19 @@ type EditorProps = {
   activeDiffId: string | null;
   setActiveDiffId: React.Dispatch<React.SetStateAction<string | null>>;
   onSelectionChange?: (selectedText: string) => void;
+  /** Select this range once its file is showing (e.g. a clicked search result). */
+  revealTarget?: RevealTarget | null;
+};
+
+export type RevealTarget = {
+  path: string;
+  /** 1-based. */
+  line: number;
+  /** 1-based. */
+  column: number;
+  length: number;
+  /** New value per request, so clicking the same result twice still jumps. */
+  token: number;
 };
 
 const languagesByExtension: Record<string, string> = {
@@ -63,13 +76,46 @@ export default function Editor({
   activeDiffId,
   setActiveDiffId,
   onSelectionChange,
+  revealTarget,
 }: EditorProps) {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
   const [pendingClosePath, setPendingClosePath] = useState<string | null>(null);
   const activeDiff = diffTabs.find((diff) => diff.id === activeDiffId) ?? null;
   const currentFile = activeDiff ? null : openedFiles.find((file) => file.path === activeFilePath) ?? null;
 
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  const revealedToken = useRef<number | null>(null);
+
+  // Runs after the file's text is in the editor: from the effect below when
+  // the editor already exists, or from onMount when it's just being created.
+  const applyReveal = useCallback(() => {
+    const editor = editorRef.current;
+    if (!editor || !revealTarget || revealedToken.current === revealTarget.token) return;
+    if (activeDiffId || activeFilePath !== revealTarget.path) return;
+
+    revealedToken.current = revealTarget.token;
+    const { line, column, length } = revealTarget;
+    editor.setSelection({ startLineNumber: line, startColumn: column, endLineNumber: line, endColumn: column + length });
+    editor.revealLineInCenter(line);
+    editor.focus();
+  }, [revealTarget, activeFilePath, activeDiffId]);
+
+  // Monaco loads asynchronously, so onMount can fire renders later than the
+  // callback it was given — read the latest version through a ref.
+  const applyRevealRef = useRef(applyReveal);
+
+  useEffect(() => {
+    applyRevealRef.current = applyReveal;
+    applyReveal();
+  }, [applyReveal, currentFile?.path]);
+
   const handleEditorMount: OnMount = useCallback((editor) => {
+    editorRef.current = editor;
+    editor.onDidDispose(() => {
+      if (editorRef.current === editor) editorRef.current = null;
+    });
+    applyRevealRef.current();
+
     editor.onDidChangeCursorSelection(() => {
       const selection = editor.getSelection();
       const model = editor.getModel();
