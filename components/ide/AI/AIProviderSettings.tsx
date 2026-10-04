@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronLeft,
   Eye,
@@ -8,9 +8,20 @@ import {
   KeyRound,
   Loader2,
   Plug,
+  RefreshCw,
 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
-import type { AIProvider } from "./types";
+import {
+  BEDROCK_REGIONS,
+  bedrockEndpoint,
+  parseBedrockEndpoint,
+  type AIProvider,
+  type BedrockEndpointType,
+} from "./types";
+
+type BedrockModel = { id: string; name: string; provider: string };
+
+const OTHER_MODEL = "__other__";
 
 type AIProviderSettingsProps = {
   provider: AIProvider;
@@ -38,8 +49,19 @@ export default function AIProviderSettings({
   const [endpoint, setEndpoint] = useState(
     initialEndpoint ?? provider.defaultEndpoint ?? "",
   );
+  // Bedrock: the endpoint URL is built from a region + endpoint type.
+  const isBedrock = provider.id === "bedrock";
+  const [bedrockRegion, setBedrockRegion] = useState(() => parseBedrockEndpoint(initialEndpoint).region);
+  const [bedrockType, setBedrockType] = useState<BedrockEndpointType>(() => parseBedrockEndpoint(initialEndpoint).type);
+  // Bedrock model dropdown, loaded live from AWS with the user's key.
+  const [bedrockModels, setBedrockModels] = useState<BedrockModel[] | null>(null);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState("");
+  const [manualModel, setManualModel] = useState(false);
+  const modelsRequest = useRef(0);
   const [connecting, setConnecting] = useState(false);
   const { push: pushToast } = useToast();
+  const resolvedEndpoint = isBedrock ? bedrockEndpoint(bedrockRegion, bedrockType) : endpoint.trim();
 
   const Icon = provider.icon;
   const usesFreeTextModel = provider.models.length === 0;
@@ -48,6 +70,38 @@ export default function AIProviderSettings({
   const canConnect = provider.isLocal
     ? endpoint.trim().length > 0 && resolvedModel.length > 0
     : apiKey.trim().length > 0 && resolvedModel.length > 0;
+
+  /** Loads the models this key can use. A blank key falls back to the saved one on the server. */
+  async function loadBedrockModels(region = bedrockRegion, endpointType = bedrockType) {
+    const requestId = ++modelsRequest.current;
+    setModelsLoading(true);
+    setModelsError("");
+
+    try {
+      const response = await fetch("/api/ai/bedrock/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: apiKey.trim() || undefined, region, endpointType }),
+      });
+      const data = await response.json().catch(() => null);
+      if (requestId !== modelsRequest.current) return; // a newer request replaced this one
+
+      if (!response.ok || !data?.success) {
+        setBedrockModels(null);
+        setModelsError(data?.error ?? "Couldn't load models.");
+        return;
+      }
+
+      const models: BedrockModel[] = data.models ?? [];
+      setBedrockModels(models);
+      setManualModel(models.length === 0);
+      if (models.length === 0) setModelsError("No models found for this region and endpoint.");
+    } catch {
+      if (requestId === modelsRequest.current) setModelsError("Couldn't load models.");
+    } finally {
+      if (requestId === modelsRequest.current) setModelsLoading(false);
+    }
+  }
 
   async function handleConnect() {
     if (!canConnect || connecting) return;
@@ -64,7 +118,7 @@ export default function AIProviderSettings({
           provider: provider.id,
           model: resolvedModel,
           apiKey: provider.isLocal ? undefined : apiKey.trim(),
-          endpoint: endpoint.trim() || undefined,
+          endpoint: resolvedEndpoint || undefined,
         }),
       });
 
@@ -80,7 +134,7 @@ export default function AIProviderSettings({
 
       onConnect({
         model: resolvedModel,
-        endpoint: endpoint.trim() || undefined,
+        endpoint: resolvedEndpoint || undefined,
       });
 
       pushToast({
@@ -166,8 +220,11 @@ export default function AIProviderSettings({
                 <input
                   value={apiKey}
                   onChange={(event) => setApiKey(event.target.value)}
+                  onBlur={() => {
+                    if (isBedrock && apiKey.trim().length >= 20) void loadBedrockModels();
+                  }}
                   type={showApiKey ? "text" : "password"}
-                  placeholder="Paste your API key"
+                  placeholder={isBedrock ? "Paste your Bedrock API key" : "Paste your API key"}
                   spellCheck={false}
                   autoComplete="off"
                   autoCorrect="off"
@@ -189,7 +246,73 @@ export default function AIProviderSettings({
               </p>
             </Field>
 
-            {usesFreeTextModel ? (
+            {isBedrock ? (
+              <Field label="Model">
+                {bedrockModels && bedrockModels.length > 0 && !manualModel ? (
+                  <select
+                    value={customModel}
+                    onChange={(event) => {
+                      if (event.target.value === OTHER_MODEL) {
+                        setManualModel(true);
+                      } else {
+                        setCustomModel(event.target.value);
+                      }
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="" disabled>
+                      Select a model…
+                    </option>
+                    {customModel && !bedrockModels.some((option) => option.id === customModel) && (
+                      <option value={customModel}>{customModel}</option>
+                    )}
+                    {[...new Set(bedrockModels.map((option) => option.provider))].map((group) => (
+                      <optgroup key={group} label={group}>
+                        {bedrockModels
+                          .filter((option) => option.provider === group)
+                          .map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.name === option.id ? option.id : `${option.name} — ${option.id}`}
+                            </option>
+                          ))}
+                      </optgroup>
+                    ))}
+                    <option value={OTHER_MODEL}>Other model ID…</option>
+                  </select>
+                ) : (
+                  <input
+                    value={customModel}
+                    onChange={(event) => setCustomModel(event.target.value)}
+                    placeholder="e.g. openai.gpt-oss-120b-1:0"
+                    spellCheck={false}
+                    autoComplete="off"
+                    className={inputClass}
+                  />
+                )}
+                <div className="mt-1 flex items-center gap-2 text-[10px] leading-4">
+                  <button
+                    type="button"
+                    disabled={modelsLoading}
+                    onClick={() => {
+                      setManualModel(false);
+                      void loadBedrockModels();
+                    }}
+                    className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[#8b949e] transition hover:bg-[#262626] hover:text-white disabled:opacity-50"
+                  >
+                    {modelsLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                    {bedrockModels ? "Reload models" : "Load models"}
+                  </button>
+                  <span className={modelsError ? "text-[#f85149]" : "text-[#6e7681]"}>
+                    {modelsLoading
+                      ? "Loading models from AWS…"
+                      : modelsError ||
+                        (bedrockModels
+                          ? `${bedrockModels.length} models available`
+                          : "Paste your key to load the model list.")}
+                  </span>
+                </div>
+              </Field>
+            ) : usesFreeTextModel ? (
               <Field label="Model">
                 <input
                   value={customModel}
@@ -214,6 +337,46 @@ export default function AIProviderSettings({
                   ))}
                 </select>
               </Field>
+            )}
+
+            {isBedrock && (
+              <>
+                <Field label="Region">
+                  <select
+                    value={bedrockRegion}
+                    onChange={(event) => {
+                      setBedrockRegion(event.target.value);
+                      if (apiKey.trim() || bedrockModels) void loadBedrockModels(event.target.value, bedrockType);
+                    }}
+                    className={inputClass}
+                  >
+                    {BEDROCK_REGIONS.map((region) => (
+                      <option key={region} value={region}>
+                        {region}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Endpoint">
+                  <select
+                    value={bedrockType}
+                    onChange={(event) => {
+                      const type = event.target.value as BedrockEndpointType;
+                      setBedrockType(type);
+                      if (apiKey.trim() || bedrockModels) void loadBedrockModels(bedrockRegion, type);
+                    }}
+                    className={inputClass}
+                  >
+                    <option value="runtime">Standard (bedrock-runtime) — recommended</option>
+                    <option value="mantle">Compatibility (bedrock-mantle)</option>
+                  </select>
+                  <p className="mt-1 text-[10px] leading-4 text-[#6e7681]">
+                    Use the model ID from the Bedrock console, and enable access to that model in this
+                    region. If the model isn&apos;t available on Standard, try Compatibility.
+                  </p>
+                </Field>
+              </>
             )}
 
             {provider.supportsCustomEndpoint && (

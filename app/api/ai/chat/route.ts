@@ -37,6 +37,8 @@ const OPENAI_COMPATIBLE_PROVIDERS = new Set([
   "openai",
   "openrouter",
   "custom",
+  // AWS Bedrock's OpenAI-compatible endpoint; Bedrock API keys are bearer tokens.
+  "bedrock",
 ]);
 
 const OLLAMA_PROVIDERS = new Set(["ollama", "local"]);
@@ -49,6 +51,7 @@ const OPENAI_COMPATIBLE_DEFAULT_ENDPOINTS: Record<string, string> = {
   groq: "https://api.groq.com/openai/v1",
   openai: "https://api.openai.com/v1",
   openrouter: "https://openrouter.ai/api/v1",
+  bedrock: "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1",
 };
 
 function encoderChunk(content: string) {

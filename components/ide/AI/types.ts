@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { Cpu } from "lucide-react";
+import { Cloud, Cpu } from "lucide-react";
 import {
   AnthropicIcon,
   GeminiIcon,
@@ -20,7 +20,8 @@ export type ProviderId =
   | "openrouter"
   | "custom"
   | "ollama"
-  | "local";
+  | "local"
+  | "bedrock";
 
 export type AIProvider = {
   id: ProviderId;
@@ -79,6 +80,14 @@ export const AI_PROVIDERS: AIProvider[] = [
     models: ["openrouter/auto", "anthropic/claude-sonnet-5", "openai/gpt-5.1"],
     supportsCustomEndpoint: true,
     defaultEndpoint: "https://openrouter.ai/api/v1",
+  },
+  {
+    id: "bedrock",
+    name: "AWS Bedrock",
+    description: "Claude, GPT-OSS and more with a Bedrock API key",
+    icon: Cloud,
+    // Free-text model ID — Bedrock has dozens and they change often.
+    models: [],
   },
   {
     id: "custom",
@@ -146,3 +155,13 @@ export type ProviderConfig = {
   model: string;
   endpoint?: string;
 };
+
+// AWS Bedrock region list + endpoint helpers live in lib/ai/bedrock so the
+// server routes can share them.
+export {
+  BEDROCK_DEFAULT_REGION,
+  BEDROCK_REGIONS,
+  bedrockEndpoint,
+  parseBedrockEndpoint,
+  type BedrockEndpointType,
+} from "@/lib/ai/bedrock";
