@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import GitHubRepositories from "@/components/ide/GitHubRepositories";
 import {
   AlertCircle,
@@ -153,6 +154,12 @@ export default function GitSourceControl({
   onFilesDiscarded,
 }: GitSourceControlProps) {
   const [initialized, setInitialized] = useState<boolean | null>(null);
+  const { user } = useUser();
+  // Commits, merges and pulls are signed as the signed-in user.
+  const author = {
+    name: user?.fullName || user?.username || "CodeClik User",
+    email: user?.primaryEmailAddress?.emailAddress || "noreply@codeclik.dev",
+  };
   const [status, setStatus] = useState<GitStatusRow[]>([]);
   const [history, setHistory] = useState<GitLogEntry[]>([]);
   const [expandedCommit, setExpandedCommit] = useState<string | null>(null);
@@ -383,10 +390,7 @@ function handleClone() {
     try {
       setLoading(true);
 
-      await commitChanges(commitMessage.trim(), {
-        name: "Niket",
-        email: "niket@example.com",
-      });
+      await commitChanges(commitMessage.trim(), author);
 
       setCommitMessage("");
       notify("Commit created.", "success");
@@ -420,7 +424,7 @@ function handleClone() {
     try {
       setLoading(true);
       const token = await fetchGithubToken();
-      await pullRemote("origin", undefined, token, { name: "Niket", email: "niket@example.com" });
+      await pullRemote("origin", undefined, token, author);
       notify("Pull completed.", "success");
       await refreshGit();
       await onRefreshExplorer?.();
@@ -483,7 +487,7 @@ function handleClone() {
 
     try {
       setLoading(true);
-      await startFreshHistory(commitMessage.trim() || "Initial commit", { name: "Niket", email: "niket@example.com" });
+      await startFreshHistory(commitMessage.trim() || "Initial commit", author);
       setCommitMessage("");
       const token = await fetchGithubToken();
       await pushRemote("origin", undefined, token, true);
@@ -541,7 +545,7 @@ function handleClone() {
     try {
       setLoading(true);
       closeMoreMenu();
-      const outcome = await mergeBranch(branch, { name: "Niket", email: "niket@example.com" });
+      const outcome = await mergeBranch(branch, author);
       await refreshGit();
       await onRefreshExplorer?.();
       notify(
