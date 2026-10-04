@@ -224,6 +224,8 @@ export default function GitSourceControl({
       }
     } catch {
       setInitialized(false);
+      // Clear the old list so the change badge doesn't keep a stale count.
+      setStatus([]);
     }
   }
 

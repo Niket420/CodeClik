@@ -79,13 +79,14 @@ async function ensureBuiltInIgnores() {
   );
 }
 
-async function ensureHead() {
+/** Returns false when the project has no repository (.git folder) yet. */
+async function ensureHead(): Promise<boolean> {
   const gitdirExists = await gitFs.promises
     .stat(".git")
     .then(() => true)
     .catch(() => false);
 
-  if (!gitdirExists) return;
+  if (!gitdirExists) return false;
 
   // Every repo — new, cloned or agent-built — gets the built-in ignores.
   await ensureBuiltInIgnores();
@@ -94,6 +95,16 @@ async function ensureHead() {
 
   if (!head) {
     await gitFs.promises.writeFile(".git/HEAD", "ref: refs/heads/main\n");
+  }
+
+  return true;
+}
+
+/** Thrown by getGitStatus when the project has no .git folder yet. */
+export class NoRepositoryError extends Error {
+  constructor() {
+    super("This project has no Git repository yet.");
+    this.name = "NoRepositoryError";
   }
 }
 
@@ -124,7 +135,14 @@ export async function initGit() {
 
 export async function getGitStatus() {
   await getWebContainer();
-  await ensureHead();
+
+  // Without a .git folder, isomorphic-git doesn't fail — it reports every file
+  // in the project as new, including node_modules (the ignore rules live in
+  // .git, so they don't exist yet either). Treat it as "no repo" instead, so
+  // Source Control offers Initialize rather than listing thousands of files.
+  if (!(await ensureHead())) {
+    throw new NoRepositoryError();
+  }
 
   return await git.statusMatrix({
     fs: gitFs,
