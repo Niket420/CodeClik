@@ -15,7 +15,7 @@ import {
 import { Group, Panel, Separator } from "react-resizable-panels";
 
 import { getWebContainer } from "@/lib/webcontainer";
-import { readDirectory } from "@/lib/filesystem";
+import { copyPath, pathExists, readDirectory, uniqueCopyName } from "@/lib/filesystem";
 import { FileTreeNode } from "@/types/file-tree";
 import IDEHeader from "@/components/ide/IDEHeader";
 import FileExplorer from "@/components/ide/FileExplorer";
@@ -120,6 +120,30 @@ export default function PlaygroundPage() {
       previousFiles.map((file) => ({ ...file, path: remap(file.path) })),
     );
     setActiveFilePath((current) => remap(current));
+    await refreshFileTree(webcontainer);
+  }
+
+  async function copyWorkspacePath(src: string, dest: string) {
+    if (!webcontainer) return;
+
+    await copyPath(webcontainer, src, dest);
+    await refreshFileTree(webcontainer);
+  }
+
+  // Files dragged in from the computer (Finder/desktop).
+  async function uploadFiles(dir: string, files: File[]) {
+    if (!webcontainer) return;
+
+    for (const file of files) {
+      const path = dir ? `${dir}/${file.name}` : file.name;
+      if (
+        (await pathExists(webcontainer, path)) &&
+        !confirm(`"${file.name}" already exists. Replace it?`)
+      ) {
+        continue;
+      }
+      await webcontainer.fs.writeFile(path, new Uint8Array(await file.arrayBuffer()));
+    }
     await refreshFileTree(webcontainer);
   }
 
@@ -424,12 +448,17 @@ export default function PlaygroundPage() {
                       <FileExplorer
                         fileTree={fileTree}
                         activeFilePath={activeFilePath}
+                        workdir={webcontainer.workdir}
                         onRefresh={() => refreshFileTree(webcontainer)}
                         onCreateFolder={createFolder}
                         onCreateFile={createFile}
                         onOpenFile={openFile}
                         onDeletePath={deletePath}
                         onRenamePath={renamePath}
+                        onCopyPath={copyWorkspacePath}
+                        pathExists={(path) => pathExists(webcontainer, path)}
+                        uniqueCopyName={(dir, name) => uniqueCopyName(webcontainer, dir, name)}
+                        onUploadFiles={uploadFiles}
                         selectedPath={selectedPath}
                         setSelectedPath={setSelectedPath}
                         selectedType={selectedType}
