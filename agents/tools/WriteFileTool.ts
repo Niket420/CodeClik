@@ -1,6 +1,7 @@
 import { statPath } from "@/contextEnginer/src";
 import type { Tool } from "../types";
 import { guardPath } from "../executor/Guardrails";
+import { isViteProject, looksLikeViteHtml } from "../runtime/ViteLayout";
 
 function parentDirOf(path: string): string | null {
   const lastSlash = path.lastIndexOf("/");
@@ -33,7 +34,19 @@ export const WriteFileTool: Tool = {
     const content = String(args.content ?? "");
 
     try {
-      const path = guardPath(rawPath, context.projectRoot);
+      let path = guardPath(rawPath, context.projectRoot);
+      let note = "";
+
+      // Vite only loads index.html from the project root; in public/ it's
+      // silently ignored and the preview stays blank. Redirect it.
+      const root = context.projectRoot === "." ? "" : `${context.projectRoot}/`;
+      if (
+        path === `${root}public/index.html` &&
+        (looksLikeViteHtml(content) || (await isViteProject(context.webcontainer, context.projectRoot)))
+      ) {
+        path = `${root}index.html`;
+        note = " Note: written to the project root instead of public/, because Vite only loads index.html from the root.";
+      }
 
       const { exists, isDirectory } = await statPath(context.webcontainer, path);
       if (exists && isDirectory) {
@@ -49,7 +62,7 @@ export const WriteFileTool: Tool = {
 
       return {
         success: true,
-        output: exists ? `Updated ${path} (${content.length} characters).` : `Created ${path} (${content.length} characters).`,
+        output: `${exists ? "Updated" : "Created"} ${path} (${content.length} characters).${note}`,
       };
     } catch (error) {
       return { success: false, output: "", error: error instanceof Error ? error.message : String(error) };

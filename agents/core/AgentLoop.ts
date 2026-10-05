@@ -1,6 +1,7 @@
 import type { AgentEventHandler, AgentMessage, ToolContext, ToolCallRequest } from "../types";
 import { runModelTurn, RateLimitError } from "../llm/AgentModelClient";
 import { executeToolCall } from "../executor/ToolExecutor";
+import { fixMisplacedIndexHtml, missingViteEntry } from "../runtime/ViteLayout";
 
 // High enough that real multi-file builds (write, install, build, fix, repeat)
 // finish in one run. Runaway loops are caught by the stuck detector and the
@@ -9,6 +10,10 @@ const DEFAULT_MAX_ITERATIONS = 200;
 
 // The same call failing this many times in a row means the model is stuck.
 const MAX_REPEATED_FAILURES = 3;
+
+// How many times the agent is sent back to fix a problem the finish check
+// found (e.g. no index.html), before its answer is accepted anyway.
+const MAX_FINISH_CHECKS = 2;
 
 // Rate-limit (429) retries per model turn before giving up.
 const MAX_RATE_LIMIT_RETRIES = 5;
@@ -64,6 +69,24 @@ function compactForModel(messages: AgentMessage[]): AgentMessage[] {
   });
 }
 
+/**
+ * Fixes what can be fixed automatically (index.html moved out of public/),
+ * and returns a problem the agent must fix itself, or null.
+ */
+async function checkBeforeFinish(
+  toolContext: ToolContext,
+  onEvent?: AgentEventHandler,
+): Promise<string | null> {
+  try {
+    const fixed = await fixMisplacedIndexHtml(toolContext.webcontainer, toolContext.projectRoot);
+    if (fixed) onEvent?.({ type: "text", delta: `\n\n_CodeClik: ${fixed}_` });
+    return await missingViteEntry(toolContext.webcontainer, toolContext.projectRoot);
+  } catch {
+    // A failed check must never block the agent from finishing.
+    return null;
+  }
+}
+
 function callSignature(call: ToolCallRequest): string {
   return `${call.name}:${JSON.stringify(call.arguments)}`;
 }
@@ -99,6 +122,7 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<string> {
 
   let lastFailedSignature: string | null = null;
   let repeatedFailures = 0;
+  let finishChecks = 0;
 
   for (let iteration = 0; iteration < maxIterations; iteration++) {
     if (signal?.aborted) return stopped();
@@ -131,6 +155,19 @@ export async function runAgentLoop(params: AgentLoopParams): Promise<string> {
 
     if (turn.toolCalls.length === 0) {
       messages.push({ role: "assistant", content: turn.content });
+
+      // Checked in code because prompt rules alone weren't reliable: a Vite
+      // app without a root index.html shows a blank preview and no error.
+      if (finishChecks < MAX_FINISH_CHECKS) {
+        const problem = await checkBeforeFinish(toolContext, onEvent);
+        if (problem) {
+          finishChecks++;
+          onEvent?.({ type: "text", delta: "\n\n_CodeClik check: index.html is missing from the project root — asking the agent to fix it…_\n\n" });
+          messages.push({ role: "user", content: `CodeClik check before finishing: ${problem} Fix this, then finish.` });
+          continue;
+        }
+      }
+
       onEvent?.({ type: "done", finalText: turn.content });
       return turn.content;
     }

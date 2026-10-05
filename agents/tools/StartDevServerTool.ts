@@ -1,6 +1,7 @@
 import type { Tool } from "../types";
 import { guardCommand, guardEnvironmentCommand, truncateOutput } from "../executor/Guardrails";
 import { startDevServer } from "../runtime/DevServer";
+import { fixMisplacedIndexHtml } from "../runtime/ViteLayout";
 
 const STARTUP_LOG_CHARS = 4_000;
 
@@ -40,6 +41,11 @@ export const StartDevServerTool: Tool = {
     try {
       guardCommand([command, ...commandArgs].join(" "));
 
+      // A Vite app with index.html in public/ starts fine but shows a blank
+      // page — fix the layout first so the preview actually loads.
+      const fixed = await fixMisplacedIndexHtml(context.webcontainer, context.projectRoot);
+      const prefix = fixed ? `${fixed}\n\n` : "";
+
       const result = await startDevServer(
         context.webcontainer,
         command,
@@ -52,18 +58,18 @@ export const StartDevServerTool: Tool = {
         case "ready":
           return {
             success: true,
-            output: `Server is running at ${result.url} (port ${result.port}) and is shown in the live preview.\nStartup output:\n${logs}\n\nUse check_dev_server to see new server output and any errors from the preview page.`,
+            output: `${prefix}Server is running at ${result.url} (port ${result.port}) and is shown in the live preview.\nStartup output:\n${logs}\n\nUse check_dev_server to see new server output and any errors from the preview page.`,
           };
         case "exited":
           return {
             success: false,
-            output: logs,
+            output: prefix + logs,
             error: `The server exited with code ${result.exitCode} before it started listening. See the output for the cause.`,
           };
         case "timeout":
           return {
             success: false,
-            output: logs,
+            output: prefix + logs,
             error: "The process is still running but hasn't opened a port yet. It may still be compiling — call check_dev_server to look again, or fix the error shown in the output.",
           };
       }
