@@ -169,12 +169,17 @@ export async function stageAll() {
 
   const status = await getGitStatus();
 
-  for (const [filepath] of status) {
-    await git.add({
-      fs: gitFs,
-      dir: ".",
-      filepath,
-    });
+  // Only files whose working copy differs from what's staged — re-adding
+  // unchanged files means re-hashing the whole repo for nothing.
+  for (const [filepath, , workdir, stage] of status) {
+    if (workdir === stage) continue;
+
+    if (workdir === 0) {
+      // Deleted on disk: git.add can't read it, so stage the deletion.
+      await git.remove({ fs: gitFs, dir: ".", filepath });
+    } else {
+      await git.add({ fs: gitFs, dir: ".", filepath });
+    }
   }
 }
 

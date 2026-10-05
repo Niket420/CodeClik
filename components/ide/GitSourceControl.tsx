@@ -1215,15 +1215,26 @@ function handleClone() {
                   </span>
                 )}
                 {changedFiles.length > 0 && (
-                  <button
-                    type="button"
-                    title="Discard all changes"
-                    disabled={loading}
-                    onClick={() => handleDiscard(changedFiles.map(([path]) => path), "unstaged")}
-                    className="ml-auto grid h-5 w-5 place-items-center rounded text-[#8b949e] hover:bg-[#262626] hover:text-white disabled:opacity-40"
-                  >
-                    <Undo2 size={13} />
-                  </button>
+                  <div className="ml-auto flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      title="Discard all changes"
+                      disabled={loading}
+                      onClick={() => handleDiscard(changedFiles.map(([path]) => path), "unstaged")}
+                      className="grid h-5 w-5 place-items-center rounded text-[#8b949e] hover:bg-[#262626] hover:text-white disabled:opacity-40"
+                    >
+                      <Undo2 size={13} />
+                    </button>
+                    <button
+                      type="button"
+                      title="Stage all changes"
+                      disabled={loading}
+                      onClick={handleStageAll}
+                      className="grid h-5 w-5 place-items-center rounded text-[#8b949e] hover:bg-[#262626] hover:text-white disabled:opacity-40"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
 
