@@ -26,7 +26,7 @@ No install, no Docker, no `ssh` — just a URL.
 
 ## The pitch
 
-<sub>Demo video: <a href="https://youtu.be/bMfBgjZ88FA">https://youtu.be/bMfBgjZ88FA</a></sub>
+<sub>Demo video: <a href="https://youtu.be/Kiiz6_adISQ">https://youtu.be/Kiiz6_adISQ
 
 You open a tab. Seconds later you have a real Node.js environment — file
 system, package manager, interactive shell — running entirely **client-side in
